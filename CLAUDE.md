@@ -1,6 +1,6 @@
 # Lishan
 
-En flashcard-app til Android. Projektet er lige startet — koden er stadig Android Studios skabelon ("Hello Android!").
+En flashcard-app til Android. Projektet er i en tidlig fase: der er en `Flashcard`-datamodel og en `FlashcardView`, som `MainActivity` midlertidigt viser direkte.
 
 ## Arbejdsform
 
@@ -15,6 +15,7 @@ En flashcard-app til Android. Projektet er lige startet — koden er stadig Andr
 - Kotlin + Jetpack Compose (Material 3), Gradle med Kotlin DSL og version catalog (`gradle/libs.versions.toml`).
 - Pakke / applicationId: `com.example.lishan`
 - minSdk 24, targetSdk/compileSdk 37
+- Git-repo på branch `main` (kun lokalt, ingen remote endnu). Commit-beskeder skrives på dansk.
 - Kode: `app/src/main/java/com/example/lishan/` (`MainActivity.kt`, tema i `ui/theme/`)
 
 ## Byg og kør
