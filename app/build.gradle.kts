@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.androidx.room)
 }
 
 android {
@@ -53,6 +54,20 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.room.testing)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    constraints {
+        // room-testing kræver mindst 1.8.1, men Room trækker selv 1.7.3 ind i appen.
+        // Testene kører med appens versioner, så appens version skal løftes.
+        implementation(libs.kotlinx.serialization.core) {
+            because("room-testing (MigrationTestHelper) kræver kotlinx-serialization 1.8.1")
+        }
+    }
+}
+// Room gemmer en JSON-beskrivelse af hver databaseversion her. Filerne skal i git:
+// de bruges til at teste migrations.
+room {
+    schemaDirectory("$projectDir/schemas")
 }

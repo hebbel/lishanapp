@@ -17,10 +17,11 @@ En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på 
 - minSdk 24, targetSdk/compileSdk 37
 - Git-repo på branch `main` med remote `origin` → https://github.com/hebbel/lishanapp (GitHub-konto `hebbel`). Commit-beskeder skrives på dansk.
 - Room 2.8 (via KSP) til lagring. Ingen ViewModel eller Navigation Compose endnu — navigation er en simpel `selectedDeck`-variabel i `LishanApp`.
-- Databasen bruger `fallbackToDestructiveMigration`: tælles `version` op, slettes data. Startdata kommer kun med ved en helt ny database, så ryd appens data bagefter: `$ADB shell pm clear com.example.lishan`. Skal erstattes af migrations, før der er rigtige brugerdata.
+- Databaseændringer: tæl `version` op i `LishanDatabase`, skriv en `Migration` i `data/Migrations.kt`, tilføj den i `addMigrations(...)`, og skriv en test i `androidTest/.../MigrationTest.kt`. Room gemmer skemaet for hver version i `app/schemas/` (skal i git). Der er ingen destruktiv fallback: mangler en migration, går appen ned i stedet for at slette data. Startdata lægges kun ind ved en helt ny installation.
+- Migrationstests kører på emulatoren: `./gradlew connectedDebugAndroidTest`. Unit tests: `./gradlew testDebugUnitTest`.
 - Kode i `app/src/main/java/com/example/lishan/`:
   - `model/` — `Deck`, `Flashcard`, `CardSide` (Room-tabeller) og `FlashcardWithSides` (kort + sider)
-  - `data/` — `DeckDao`, `LishanDatabase` (inkl. startdata)
+  - `data/` — `DeckDao`, `LishanDatabase` (inkl. startdata), `Migrations.kt`
   - `ui/LishanApp.kt` — rod-UI, vælger skærm
   - `ui/decklist/`, `ui/deck/`, `ui/flashcard/` — skærme og komponenter; tema i `ui/theme/`
 

@@ -13,13 +13,15 @@ import com.example.lishan.model.Flashcard
  * Appens database. Den gemmes som filen "lishan.db" på enheden og overlever,
  * når appen lukkes.
  *
- * `version` skal tælles op, hver gang tabellerne ændres.
+ * `version` skal tælles op, hver gang tabellerne ændres, og der skal skrives en migration
+ * i Migrations.kt. Room gemmer skemaet for hver version i `app/schemas/`.
+ *
  * Version 2: kortenes indhold flyttet fra front/back til tabellen card_sides.
  */
 @Database(
     entities = [Deck::class, Flashcard::class, CardSide::class],
     version = 2,
-    exportSchema = false,
+    exportSchema = true,
 )
 abstract class LishanDatabase : RoomDatabase() {
     abstract fun deckDao(): DeckDao
@@ -37,10 +39,8 @@ abstract class LishanDatabase : RoomDatabase() {
                     "lishan.db",
                 )
                     .addCallback(SeedData)
-                    // MIDLERTIDIGT: ved en ny version slettes hele databasen og bygges forfra.
-                    // Det er fint, så længe der kun er startdata. Før appen får rigtige brugerdata,
-                    // skal dette erstattes af migrations, der flytter data over.
-                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    // Mangler der en migration, går appen ned i stedet for at slette data i stilhed.
+                    .addMigrations(MIGRATION_1_2)
                     .build()
                     .also { instance = it }
             }
@@ -48,9 +48,8 @@ abstract class LishanDatabase : RoomDatabase() {
 }
 
 /**
- * Startdata, der lægges ind, når databasen oprettes første gang.
- * NB: `onCreate` kaldes ikke efter en destruktiv migration. Efter en ny `version` er
- * databasen derfor tom, indtil appens data ryddes (`adb shell pm clear com.example.lishan`).
+ * Startdata, der lægges ind, når databasen oprettes første gang (ny installation).
+ * Eksisterende databaser får ikke startdata igen; de bliver migreret.
  */
 private object SeedData : RoomDatabase.Callback() {
     override fun onCreate(db: SupportSQLiteDatabase) {
