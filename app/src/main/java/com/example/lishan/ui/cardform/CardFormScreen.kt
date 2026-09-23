@@ -14,7 +14,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -37,7 +40,8 @@ fun CardFormScreen(
     initialSides: List<String> = emptyList(),
 ) {
     // En liste, som Compose holder øje med: tilføjes eller ændres et element, tegnes skærmen igen.
-    val sides = remember {
+    // `rememberSaveable` kan ikke selv gemme en sådan liste, så [SidesSaver] fortæller hvordan.
+    val sides = rememberSaveable(saver = SidesSaver) {
         mutableStateListOf(*initialSides.toTypedArray()).apply { while (size < 2) add("") }
     }
 
@@ -79,6 +83,12 @@ fun CardFormScreen(
         }
     }
 }
+
+/** Gemmer listen af sidetekster som en almindelig liste og genskaber den som en state-liste. */
+private val SidesSaver = listSaver<SnapshotStateList<String>, String>(
+    save = { it.toList() },
+    restore = { it.toMutableStateList() },
+)
 
 @Preview(showBackground = true)
 @Composable

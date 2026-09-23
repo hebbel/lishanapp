@@ -15,11 +15,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.example.lishan.data.DeckDao
 import com.example.lishan.model.Deck
-import com.example.lishan.model.FlashcardWithSides
 import com.example.lishan.ui.cardform.CardFormScreen
 import com.example.lishan.ui.deck.DeckScreen
 import com.example.lishan.ui.deckform.DeckFormScreen
@@ -37,9 +38,44 @@ sealed interface Screen {
     data object NewDeck : Screen
     data class EditDeck(val deck: Deck) : Screen
     data class NewCard(val deck: Deck) : Screen
-    /** [cardIndex] huskes, så man kommer tilbage til samme kort bagefter. */
-    data class EditCard(val deck: Deck, val card: FlashcardWithSides, val cardIndex: Int) : Screen
+    /** [sides]: kortets nuværende tekst. [cardIndex] huskes, så man kommer tilbage til samme kort bagefter. */
+    data class EditCard(val deck: Deck, val cardId: Long, val sides: List<String>, val cardIndex: Int) : Screen
 }
+
+/**
+ * Fortæller `rememberSaveable`, hvordan en [Screen] gemmes, når telefonen drejes:
+ * som en liste af tal og tekst (det kan Android gemme), med skærmens navn først.
+ * [restore] bygger skærmen op igen fra listen.
+ */
+internal val ScreenSaver = listSaver<Screen, Any>(
+    save = { screen ->
+        when (screen) {
+            Screen.DeckList -> listOf("DeckList")
+            is Screen.DeckDetail -> listOf("DeckDetail", screen.deck.id, screen.deck.name, screen.cardIndex)
+            Screen.NewDeck -> listOf("NewDeck")
+            is Screen.EditDeck -> listOf("EditDeck", screen.deck.id, screen.deck.name)
+            is Screen.NewCard -> listOf("NewCard", screen.deck.id, screen.deck.name)
+            is Screen.EditCard -> listOf(
+                "EditCard", screen.deck.id, screen.deck.name, screen.cardId, screen.cardIndex, ArrayList(screen.sides),
+            )
+        }
+    },
+    restore = { saved ->
+        fun deck() = Deck(id = saved[1] as Long, name = saved[2] as String)
+        when (saved[0]) {
+            "DeckDetail" -> Screen.DeckDetail(deck(), saved[3] as Int)
+            "NewDeck" -> Screen.NewDeck
+            "EditDeck" -> Screen.EditDeck(deck())
+            "NewCard" -> Screen.NewCard(deck())
+            "EditCard" -> {
+                @Suppress("UNCHECKED_CAST")
+                val sides = saved[5] as List<String>
+                Screen.EditCard(deck(), cardId = saved[3] as Long, sides = sides, cardIndex = saved[4] as Int)
+            }
+            else -> Screen.DeckList
+        }
+    },
+)
 
 /**
  * Roden af appens UI. Holder styr på, hvilken skærm der vises, og forbinder skærmene
@@ -47,7 +83,8 @@ sealed interface Screen {
  */
 @Composable
 fun LishanApp(dao: DeckDao) {
-    var screen by remember { mutableStateOf<Screen>(Screen.DeckList) }
+    // `rememberSaveable` (i stedet for `remember`) overlever, at skærmen genskabes, fx når telefonen drejes.
+    var screen by rememberSaveable(stateSaver = ScreenSaver) { mutableStateOf<Screen>(Screen.DeckList) }
     // Databasekald er `suspend`-funktioner og skal startes fra en coroutine.
     val scope = rememberCoroutineScope()
 
@@ -100,7 +137,9 @@ fun LishanApp(dao: DeckDao) {
                         screen = Screen.DeckList
                         scope.launch { dao.deleteDeck(deck) }
                     },
-                    onEditCard = { card, index -> screen = Screen.EditCard(deck, card, index) },
+                    onEditCard = { card, index ->
+                        screen = Screen.EditCard(deck, card.card.id, card.visibleSides, index)
+                    },
                     onDeleteCard = { card -> scope.launch { dao.deleteCard(card.card.id) } },
                     modifier = contentModifier,
                 )
@@ -149,10 +188,10 @@ fun LishanApp(dao: DeckDao) {
 
             is Screen.EditCard -> CardFormScreen(
                 title = "Ret kort",
-                initialSides = current.card.visibleSides,
+                initialSides = current.sides,
                 onSave = { sides ->
                     scope.launch {
-                        dao.updateCardSides(current.card.card.id, sides)
+                        dao.updateCardSides(current.cardId, sides)
                         screen = Screen.DeckDetail(current.deck, current.cardIndex)
                     }
                 },

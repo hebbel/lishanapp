@@ -10,7 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,7 +26,7 @@ import com.example.lishan.ui.theme.LishanTheme
 @Composable
 fun FlashcardView(sides: List<String>, modifier: Modifier = Modifier) {
     // Husker hvilken side der vises. Når værdien ændres, tegner Compose kortet igen.
-    var sideIndex by remember { mutableIntStateOf(0) }
+    var sideIndex by rememberSaveable { mutableIntStateOf(0) }
 
     Card(
         onClick = { if (sides.isNotEmpty()) sideIndex = (sideIndex + 1) % sides.size },

@@ -13,7 +13,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,7 +35,8 @@ fun DeckFormScreen(
     modifier: Modifier = Modifier,
     initialName: String = "",
 ) {
-    var name by remember { mutableStateOf(initialName) }
+    // `rememberSaveable`: teksten bevares, hvis telefonen drejes midt i skrivningen.
+    var name by rememberSaveable { mutableStateOf(initialName) }
 
     Column(
         modifier = modifier.padding(16.dp),

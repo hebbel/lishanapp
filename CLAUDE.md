@@ -17,6 +17,7 @@ En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på 
 - minSdk 24, targetSdk/compileSdk 37
 - Git-repo på branch `main` med remote `origin` → https://github.com/hebbel/lishanapp (GitHub-konto `hebbel`). Commit-beskeder skrives på dansk.
 - Room 2.8 (via KSP) til lagring. Ingen ViewModel eller Navigation Compose endnu — navigation er en `Screen`-sealed interface + én state-variabel i `LishanApp`, som også håndterer tilbage-knappen. Databasekald startes med `rememberCoroutineScope` i `LishanApp`; skærmene selv kender ikke databasen.
+- UI-tilstand, der skal overleve at telefonen drejes (skærm, valgt kort/side, åbne dialoger, tekst i formularer), gemmes med `rememberSaveable` — ikke `remember`. `Screen` gemmes via `ScreenSaver` i `LishanApp.kt` (tal og tekst i en liste); en ny `Screen`-variant skal også tilføjes dér og i `ScreenSaverTest`. Parcelize blev prøvet, men dets compiler-plugin kobler sig ikke på med AGP's indbyggede Kotlin i dette projekt.
 - Databaseændringer: tæl `version` op i `LishanDatabase`, skriv en `Migration` i `data/Migrations.kt`, tilføj den i `addMigrations(...)`, og skriv en test i `androidTest/.../MigrationTest.kt`. Room gemmer skemaet for hver version i `app/schemas/` (skal i git). Der er ingen destruktiv fallback: mangler en migration, går appen ned i stedet for at slette data. Startdata lægges kun ind ved en helt ny installation.
 - Instrumenterede tests (DAO + migrations) kører på emulatoren: `./gradlew connectedDebugAndroidTest`. Unit tests: `./gradlew testDebugUnitTest`. `gradle.properties` har `leaveApksInstalledAfterRun=true`, så en testkørsel ikke afinstallerer appen og sletter dens data.
 - Kode i `app/src/main/java/com/example/lishan/`:
@@ -25,7 +26,7 @@ En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på 
   - `ui/LishanApp.kt` — rod-UI: `Screen`-typen, vælger skærm, "+"-knap, tilbage-knap, gemmer i databasen
   - `ui/decklist/`, `ui/deck/`, `ui/deckform/`, `ui/cardform/` (bruges både til at oprette og rette), `ui/flashcard/` — skærme og komponenter; tema i `ui/theme/`
 
-Avast's HTTPS-scanning skal være slået fra — ellers kan Gradle ikke hente nye afhængigheder (Java stoler ikke på Avasts certifikat).
+Avast opsnapper HTTPS, og Java stoler ikke på Avasts certifikat, så Gradle kan ikke hente nye afhængigheder. Der er lagt undtagelser ind i Avast for `dl.google.com`, `repo.maven.apache.org`, `plugins.gradle.org` og `services.gradle.org`. Fejler en download med "could not resolve", så tjek certifikatudstederen med `openssl s_client -connect <host>:443` — står der "Avast", mangler der en undtagelse.
 
 ## Byg og kør
 

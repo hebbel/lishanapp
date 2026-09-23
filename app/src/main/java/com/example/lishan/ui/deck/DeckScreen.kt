@@ -4,8 +4,12 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -15,7 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,14 +52,17 @@ fun DeckScreen(
     modifier: Modifier = Modifier,
     initialIndex: Int = 0,
 ) {
-    var index by remember { mutableIntStateOf(initialIndex) }
-    // Hvilken bekræftelsesdialog der er åben, hvis nogen.
-    var confirmDeleteDeck by remember { mutableStateOf(false) }
-    var cardToDelete by remember { mutableStateOf<FlashcardWithSides?>(null) }
+    // `rememberSaveable`: overlever at skærmen genskabes, fx når telefonen drejes.
+    var index by rememberSaveable { mutableIntStateOf(initialIndex) }
+    // Hvilken bekræftelsesdialog der er åben, hvis nogen. For kortet gemmes kun id'et.
+    var confirmDeleteDeck by rememberSaveable { mutableStateOf(false) }
+    var cardToDeleteId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     Column(
         modifier = modifier
             .fillMaxSize()
+            // Kan rulle lodret, hvis indholdet ikke kan være der (fx når telefonen ligger ned).
+            .verticalScroll(rememberScrollState())
             .padding(16.dp)
             // Registrerer vandrette swipes over hele skærmen.
             .pointerInput(cards.size) {
@@ -93,9 +100,11 @@ fun DeckScreen(
             Text("${position + 1} / ${cards.size}")
             Row {
                 TextButton(onClick = { onEditCard(card, position) }) { Text("Ret kort") }
-                TextButton(onClick = { cardToDelete = card }) { Text("Slet kort") }
+                TextButton(onClick = { cardToDeleteId = card.card.id }) { Text("Slet kort") }
             }
         }
+        // Plads i bunden, så "+"-knappen ikke dækker knapperne, når man har rullet helt ned.
+        Spacer(Modifier.height(72.dp))
     }
 
     if (confirmDeleteDeck) {
@@ -114,15 +123,15 @@ fun DeckScreen(
         )
     }
 
-    cardToDelete?.let { card ->
+    cards.find { it.card.id == cardToDeleteId }?.let { card ->
         ConfirmDeleteDialog(
             title = "Slet kort?",
             text = "\"${card.visibleSides.firstOrNull().orEmpty()}\" slettes. Det kan ikke fortrydes.",
             onConfirm = {
-                cardToDelete = null
+                cardToDeleteId = null
                 onDeleteCard(card)
             },
-            onDismiss = { cardToDelete = null },
+            onDismiss = { cardToDeleteId = null },
         )
     }
 }
