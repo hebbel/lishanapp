@@ -83,6 +83,10 @@ fun DeckScreen(
                         if (dragged < -threshold && cards.isNotEmpty()) {
                             index = (index + 1) % cards.size
                         }
+                        //Positiv: fingeren trukket mod højre.
+                        else if (dragged > threshold && cards.isNotEmpty()) {
+                            index = (index - 1).mod(cards.size)
+                        }
                     },
                     onHorizontalDrag = { _, dragAmount -> dragged += dragAmount },
                 )
