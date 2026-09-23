@@ -1,4 +1,4 @@
-package com.example.lishan.ui.newcard
+package com.example.lishan.ui.cardform
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,18 +23,23 @@ import com.example.lishan.model.CardSide
 import com.example.lishan.ui.theme.LishanTheme
 
 /**
- * Skærm til at oprette et nyt kort i et deck. Starter med to sider; flere kan tilføjes
- * op til [CardSide.MAX_SIDES]. Kalder [onSave] med teksten fra alle felterne.
+ * Formular til et korts sider. Bruges både til at oprette et nyt kort og til at rette et
+ * eksisterende; [initialSides] er den tekst, felterne starter med. Der vises altid mindst
+ * to felter, og flere kan tilføjes op til [CardSide.MAX_SIDES].
+ * Kalder [onSave] med teksten fra alle felterne.
  */
 @Composable
-fun NewCardScreen(
-    deckName: String,
+fun CardFormScreen(
+    title: String,
     onSave: (sides: List<String>) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
+    initialSides: List<String> = emptyList(),
 ) {
     // En liste, som Compose holder øje med: tilføjes eller ændres et element, tegnes skærmen igen.
-    val sides = remember { mutableStateListOf("", "") }
+    val sides = remember {
+        mutableStateListOf(*initialSides.toTypedArray()).apply { while (size < 2) add("") }
+    }
 
     Column(
         modifier = modifier
@@ -42,7 +47,7 @@ fun NewCardScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Nyt kort i $deckName", style = MaterialTheme.typography.headlineSmall)
+        Text(title, style = MaterialTheme.typography.headlineSmall)
 
         sides.forEachIndexed { index, text ->
             OutlinedTextField(
@@ -77,8 +82,13 @@ fun NewCardScreen(
 
 @Preview(showBackground = true)
 @Composable
-fun NewCardScreenPreview() {
+fun CardFormScreenPreview() {
     LishanTheme {
-        NewCardScreen(deckName = "Dyr", onSave = {}, onCancel = {})
+        CardFormScreen(
+            title = "Ret kort",
+            initialSides = listOf("hund", "dog", "perro"),
+            onSave = {},
+            onCancel = {},
+        )
     }
 }

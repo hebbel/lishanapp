@@ -1,4 +1,4 @@
-package com.example.lishan.ui.newdeck
+package com.example.lishan.ui.deckform
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,21 +22,26 @@ import androidx.compose.ui.unit.dp
 import com.example.lishan.ui.theme.LishanTheme
 
 /**
- * Skærm til at oprette et nyt deck. Kalder [onSave] med navnet, når brugeren trykker "Opret".
+ * Formular til et decks navn. Bruges både til at oprette et nyt deck og til at omdøbe et
+ * eksisterende; [initialName] er det navn, feltet starter med.
+ * Kalder [onSave] med navnet, når brugeren trykker på knappen.
  */
 @Composable
-fun NewDeckScreen(
+fun DeckFormScreen(
+    title: String,
+    saveLabel: String,
     onSave: (name: String) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
+    initialName: String = "",
 ) {
-    var name by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(initialName) }
 
     Column(
         modifier = modifier.padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("Nyt deck", style = MaterialTheme.typography.headlineSmall)
+        Text(title, style = MaterialTheme.typography.headlineSmall)
 
         OutlinedTextField(
             value = name,
@@ -51,15 +56,15 @@ fun NewDeckScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp, alignment = Alignment.End),
         ) {
             TextButton(onClick = onCancel) { Text("Annullér") }
-            Button(onClick = { onSave(name.trim()) }, enabled = name.isNotBlank()) { Text("Opret") }
+            Button(onClick = { onSave(name.trim()) }, enabled = name.isNotBlank()) { Text(saveLabel) }
         }
     }
 }
 
 @Preview(showBackground = true)
 @Composable
-fun NewDeckScreenPreview() {
+fun DeckFormScreenPreview() {
     LishanTheme {
-        NewDeckScreen(onSave = {}, onCancel = {})
+        DeckFormScreen(title = "Omdøb deck", saveLabel = "Gem", initialName = "Dyr", onSave = {}, onCancel = {})
     }
 }

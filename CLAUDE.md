@@ -1,6 +1,6 @@
 # Lishan
 
-En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på et deck viser dets kort ét ad gangen (tryk = næste side, swipe venstre = næste kort; begge starter forfra efter sidste). Data ligger i en Room-database, der ved første start får decket "Dyr" (hund/dog/perro, kat/cat). Et kort har 1–8 sider; kun sider med indhold vises. "+" på startskærmen opretter et deck; "+" i et deck opretter et kort.
+En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på et deck viser dets kort ét ad gangen (tryk = næste side, swipe venstre = næste kort; begge starter forfra efter sidste). Data ligger i en Room-database, der ved første start får decket "Dyr" (hund/dog/perro, kat/cat). Et kort har 1–8 sider; kun sider med indhold vises. "+" på startskærmen opretter et deck; "+" i et deck opretter et kort. Inde i et deck kan decket omdøbes/slettes og det viste kort rettes/slettes (sletning bekræftes i en dialog).
 
 ## Arbejdsform
 
@@ -23,7 +23,7 @@ En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på 
   - `model/` — `Deck`, `Flashcard`, `CardSide` (Room-tabeller) og `FlashcardWithSides` (kort + sider)
   - `data/` — `DeckDao`, `LishanDatabase` (inkl. startdata), `Migrations.kt`
   - `ui/LishanApp.kt` — rod-UI: `Screen`-typen, vælger skærm, "+"-knap, tilbage-knap, gemmer i databasen
-  - `ui/decklist/`, `ui/deck/`, `ui/newdeck/`, `ui/newcard/`, `ui/flashcard/` — skærme og komponenter; tema i `ui/theme/`
+  - `ui/decklist/`, `ui/deck/`, `ui/deckform/`, `ui/cardform/` (bruges både til at oprette og rette), `ui/flashcard/` — skærme og komponenter; tema i `ui/theme/`
 
 Avast's HTTPS-scanning skal være slået fra — ellers kan Gradle ikke hente nye afhængigheder (Java stoler ikke på Avasts certifikat).
 
@@ -48,3 +48,6 @@ $ADB exec-out screencap -p > screen.png   # skærmbillede til at verificere UI
 Hvis buildet fejler med `Unable to delete directory ...`, skyldes det mapper med Windows-attributten ReadOnly (Gradle kan ikke slette dem, men `rm -rf` kan). Ret det med `attrib -R "C:\Users\sjheb\code\lishanapp\*" /S /D` i PowerShell og byg igen.
 
 Emulator: Pixel 8 AVD (Android 17), `emulator-5554`.
+
+- I Git Bash: sæt `export MSYS_NO_PATHCONV=1` før adb-kommandoer med enhedsstier (fx `/sdcard/...`), ellers laves de om til Windows-stier.
+- Hvis tryk ikke når frem til appen, og logcat viser `Not sending touch gesture ... NO_INPUT_CHANNEL` eller en ANR "Application does not have a focused window", er det emulatoren: `$ADB reboot`.

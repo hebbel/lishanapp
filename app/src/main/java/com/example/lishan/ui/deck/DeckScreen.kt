@@ -3,14 +3,18 @@ package com.example.lishan.ui.deck
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -27,14 +31,27 @@ import com.example.lishan.ui.theme.LishanTheme
 /**
  * Viser kortene i ét deck, ét ad gangen. Swipe til venstre går til næste kort;
  * efter det sidste kort starter decket forfra.
+ *
+ * Knapperne til at omdøbe/slette decket og rette/slette det viste kort melder bare tilbage
+ * via callbacks; sletning skal først bekræftes i en dialog.
+ *
+ * @param initialIndex det kort, skærmen starter på (fx når man kommer tilbage efter at have rettet et kort).
  */
 @Composable
 fun DeckScreen(
     deckName: String,
     cards: List<FlashcardWithSides>,
+    onRenameDeck: () -> Unit,
+    onDeleteDeck: () -> Unit,
+    onEditCard: (card: FlashcardWithSides, index: Int) -> Unit,
+    onDeleteCard: (card: FlashcardWithSides) -> Unit,
     modifier: Modifier = Modifier,
+    initialIndex: Int = 0,
 ) {
-    var index by remember { mutableIntStateOf(0) }
+    var index by remember { mutableIntStateOf(initialIndex) }
+    // Hvilken bekræftelsesdialog der er åben, hvis nogen.
+    var confirmDeleteDeck by remember { mutableStateOf(false) }
+    var cardToDelete by remember { mutableStateOf<FlashcardWithSides?>(null) }
 
     Column(
         modifier = modifier
@@ -59,19 +76,71 @@ fun DeckScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(deckName, style = MaterialTheme.typography.headlineSmall)
+        Row {
+            TextButton(onClick = onRenameDeck) { Text("Omdøb") }
+            TextButton(onClick = { confirmDeleteDeck = true }) { Text("Slet deck") }
+        }
 
         if (cards.isEmpty()) {
             Text("Dette deck har ingen kort endnu. Tryk på + for at tilføje et.")
-            return@Column
+        } else {
+            val position = index % cards.size
+            val card = cards[position]
+            // `key` giver hvert kort sin egen FlashcardView, så et nyt kort altid starter på første side.
+            key(card.card.id) {
+                FlashcardView(sides = card.visibleSides)
+            }
+            Text("${position + 1} / ${cards.size}")
+            Row {
+                TextButton(onClick = { onEditCard(card, position) }) { Text("Ret kort") }
+                TextButton(onClick = { cardToDelete = card }) { Text("Slet kort") }
+            }
         }
-
-        val card = cards[index % cards.size]
-        // `key` giver hvert kort sin egen FlashcardView, så et nyt kort altid starter på første side.
-        key(card.card.id) {
-            FlashcardView(sides = card.visibleSides)
-        }
-        Text("${index % cards.size + 1} / ${cards.size}")
     }
+
+    if (confirmDeleteDeck) {
+        ConfirmDeleteDialog(
+            title = "Slet deck?",
+            text = if (cards.isEmpty()) {
+                "\"$deckName\" slettes. Det kan ikke fortrydes."
+            } else {
+                "\"$deckName\" og alle dets ${cards.size} kort slettes. Det kan ikke fortrydes."
+            },
+            onConfirm = {
+                confirmDeleteDeck = false
+                onDeleteDeck()
+            },
+            onDismiss = { confirmDeleteDeck = false },
+        )
+    }
+
+    cardToDelete?.let { card ->
+        ConfirmDeleteDialog(
+            title = "Slet kort?",
+            text = "\"${card.visibleSides.firstOrNull().orEmpty()}\" slettes. Det kan ikke fortrydes.",
+            onConfirm = {
+                cardToDelete = null
+                onDeleteCard(card)
+            },
+            onDismiss = { cardToDelete = null },
+        )
+    }
+}
+
+@Composable
+private fun ConfirmDeleteDialog(
+    title: String,
+    text: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(text) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("Slet") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Annullér") } },
+    )
 }
 
 @Preview(showBackground = true)
@@ -96,6 +165,10 @@ fun DeckScreenPreview() {
                     ),
                 ),
             ),
+            onRenameDeck = {},
+            onDeleteDeck = {},
+            onEditCard = { _, _ -> },
+            onDeleteCard = {},
         )
     }
 }

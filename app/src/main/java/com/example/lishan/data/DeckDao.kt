@@ -1,9 +1,11 @@
 package com.example.lishan.data
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import com.example.lishan.model.CardSide
 import com.example.lishan.model.Deck
 import com.example.lishan.model.Flashcard
@@ -40,6 +42,21 @@ abstract class DeckDao {
     @Insert
     abstract suspend fun insertSides(sides: List<CardSide>)
 
+    /** Gemmer ændringer i et eksisterende deck (fx nyt navn). Rækken findes via `id`. */
+    @Update
+    abstract suspend fun updateDeck(deck: Deck)
+
+    /** Sletter et deck. Dets kort og deres sider slettes automatisk med (ForeignKey CASCADE). */
+    @Delete
+    abstract suspend fun deleteDeck(deck: Deck)
+
+    /** Sletter et kort. Dets sider slettes automatisk med (ForeignKey CASCADE). */
+    @Query("DELETE FROM flashcards WHERE id = :cardId")
+    abstract suspend fun deleteCard(cardId: Long)
+
+    @Query("DELETE FROM card_sides WHERE cardId = :cardId")
+    abstract suspend fun deleteSides(cardId: Long)
+
     /**
      * Gemmer et nyt kort med dets sider. Tomme sider springes over, og de øvrige
      * nummereres 1, 2, 3 … i rækkefølge. Højst [CardSide.MAX_SIDES] sider gemmes.
@@ -47,10 +64,25 @@ abstract class DeckDao {
      */
     @Transaction
     open suspend fun insertCardWithSides(deckId: Long, sides: List<String>) {
+        val cardId = insertCard(Flashcard(deckId = deckId))
+        insertSides(toCardSides(cardId, sides))
+    }
+
+    /**
+     * Erstatter alle sider på et eksisterende kort. Samme regler som [insertCardWithSides].
+     * Det er enklere at slette de gamle sider og indsætte de nye end at finde ud af,
+     * hvilke der er ændret, tilføjet eller fjernet.
+     */
+    @Transaction
+    open suspend fun updateCardSides(cardId: Long, sides: List<String>) {
+        val newSides = toCardSides(cardId, sides)
+        deleteSides(cardId)
+        insertSides(newSides)
+    }
+
+    private fun toCardSides(cardId: Long, sides: List<String>): List<CardSide> {
         val texts = sides.map { it.trim() }.filter { it.isNotEmpty() }.take(CardSide.MAX_SIDES)
         require(texts.isNotEmpty()) { "Et kort skal have mindst én side med indhold" }
-
-        val cardId = insertCard(Flashcard(deckId = deckId))
-        insertSides(texts.mapIndexed { i, text -> CardSide(cardId = cardId, position = i + 1, text = text) })
+        return texts.mapIndexed { i, text -> CardSide(cardId = cardId, position = i + 1, text = text) }
     }
 }

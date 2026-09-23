@@ -19,10 +19,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.example.lishan.data.DeckDao
 import com.example.lishan.model.Deck
+import com.example.lishan.model.FlashcardWithSides
+import com.example.lishan.ui.cardform.CardFormScreen
 import com.example.lishan.ui.deck.DeckScreen
+import com.example.lishan.ui.deckform.DeckFormScreen
 import com.example.lishan.ui.decklist.DeckListScreen
-import com.example.lishan.ui.newcard.NewCardScreen
-import com.example.lishan.ui.newdeck.NewDeckScreen
 import kotlinx.coroutines.launch
 
 /**
@@ -31,9 +32,13 @@ import kotlinx.coroutines.launch
  */
 sealed interface Screen {
     data object DeckList : Screen
-    data class DeckDetail(val deck: Deck) : Screen
+    /** [cardIndex]: hvilket kort decket åbner på. */
+    data class DeckDetail(val deck: Deck, val cardIndex: Int = 0) : Screen
     data object NewDeck : Screen
+    data class EditDeck(val deck: Deck) : Screen
     data class NewCard(val deck: Deck) : Screen
+    /** [cardIndex] huskes, så man kommer tilbage til samme kort bagefter. */
+    data class EditCard(val deck: Deck, val card: FlashcardWithSides, val cardIndex: Int) : Screen
 }
 
 /**
@@ -49,7 +54,9 @@ fun LishanApp(dao: DeckDao) {
     // Androids tilbage-knap/-gestus går ét skridt tilbage i stedet for at lukke appen.
     BackHandler(enabled = screen != Screen.DeckList) {
         screen = when (val current = screen) {
+            is Screen.EditDeck -> Screen.DeckDetail(current.deck)
             is Screen.NewCard -> Screen.DeckDetail(current.deck)
+            is Screen.EditCard -> Screen.DeckDetail(current.deck, current.cardIndex)
             else -> Screen.DeckList
         }
     }
@@ -87,11 +94,21 @@ fun LishanApp(dao: DeckDao) {
                 DeckScreen(
                     deckName = deck.name,
                     cards = cards,
+                    initialIndex = current.cardIndex,
+                    onRenameDeck = { screen = Screen.EditDeck(deck) },
+                    onDeleteDeck = {
+                        screen = Screen.DeckList
+                        scope.launch { dao.deleteDeck(deck) }
+                    },
+                    onEditCard = { card, index -> screen = Screen.EditCard(deck, card, index) },
+                    onDeleteCard = { card -> scope.launch { dao.deleteCard(card.card.id) } },
                     modifier = contentModifier,
                 )
             }
 
-            Screen.NewDeck -> NewDeckScreen(
+            Screen.NewDeck -> DeckFormScreen(
+                title = "Nyt deck",
+                saveLabel = "Opret",
                 onSave = { name ->
                     scope.launch {
                         val id = dao.insertDeck(Deck(name = name))
@@ -103,8 +120,23 @@ fun LishanApp(dao: DeckDao) {
                 modifier = contentModifier,
             )
 
-            is Screen.NewCard -> NewCardScreen(
-                deckName = current.deck.name,
+            is Screen.EditDeck -> DeckFormScreen(
+                title = "Omdøb deck",
+                saveLabel = "Gem",
+                initialName = current.deck.name,
+                onSave = { name ->
+                    val renamed = current.deck.copy(name = name)
+                    scope.launch {
+                        dao.updateDeck(renamed)
+                        screen = Screen.DeckDetail(renamed)
+                    }
+                },
+                onCancel = { screen = Screen.DeckDetail(current.deck) },
+                modifier = contentModifier,
+            )
+
+            is Screen.NewCard -> CardFormScreen(
+                title = "Nyt kort i ${current.deck.name}",
                 onSave = { sides ->
                     scope.launch {
                         dao.insertCardWithSides(current.deck.id, sides)
@@ -112,6 +144,19 @@ fun LishanApp(dao: DeckDao) {
                     }
                 },
                 onCancel = { screen = Screen.DeckDetail(current.deck) },
+                modifier = contentModifier,
+            )
+
+            is Screen.EditCard -> CardFormScreen(
+                title = "Ret kort",
+                initialSides = current.card.visibleSides,
+                onSave = { sides ->
+                    scope.launch {
+                        dao.updateCardSides(current.card.card.id, sides)
+                        screen = Screen.DeckDetail(current.deck, current.cardIndex)
+                    }
+                },
+                onCancel = { screen = Screen.DeckDetail(current.deck, current.cardIndex) },
                 modifier = contentModifier,
             )
         }

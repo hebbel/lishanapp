@@ -46,6 +46,60 @@ class DeckDaoTest {
     }
 
     @Test
+    fun updateCardSides_replacesAllSides() = runBlocking {
+        val deckId = dao.insertDeck(Deck(name = "Farver"))
+        dao.insertCardWithSides(deckId, listOf("rød", "red", "rojo"))
+        val cardId = dao.getCards(deckId).first().single().card.id
+
+        dao.updateCardSides(cardId, listOf("", "blå", "blue"))
+
+        assertEquals(listOf("blå", "blue"), dao.getCards(deckId).first().single().visibleSides)
+        assertEquals(2, count("card_sides"))
+    }
+
+    @Test
+    fun updateDeck_changesName() = runBlocking {
+        val id = dao.insertDeck(Deck(name = "Farvr"))
+
+        dao.updateDeck(Deck(id = id, name = "Farver"))
+
+        assertEquals(listOf("Farver"), dao.getDecks().first().map { it.name })
+    }
+
+    @Test
+    fun deleteCard_alsoDeletesItsSides() = runBlocking {
+        val deckId = dao.insertDeck(Deck(name = "Farver"))
+        dao.insertCardWithSides(deckId, listOf("rød", "red"))
+        dao.insertCardWithSides(deckId, listOf("blå", "blue"))
+        val first = dao.getCards(deckId).first().first()
+
+        dao.deleteCard(first.card.id)
+
+        assertEquals(listOf(listOf("blå", "blue")), dao.getCards(deckId).first().map { it.visibleSides })
+        assertEquals(2, count("card_sides"))
+    }
+
+    @Test
+    fun deleteDeck_alsoDeletesItsCardsAndSides() = runBlocking {
+        val keepId = dao.insertDeck(Deck(name = "Dyr"))
+        dao.insertCardWithSides(keepId, listOf("hund", "dog"))
+        val deleteId = dao.insertDeck(Deck(name = "Farver"))
+        dao.insertCardWithSides(deleteId, listOf("rød", "red"))
+
+        dao.deleteDeck(Deck(id = deleteId, name = "Farver"))
+
+        assertEquals(listOf("Dyr"), dao.getDecks().first().map { it.name })
+        assertEquals(1, count("flashcards"))
+        assertEquals(2, count("card_sides"))
+    }
+
+    private fun count(table: String): Int =
+        db.openHelper.readableDatabase.query("SELECT COUNT(*) FROM $table").use { c ->
+            c.moveToFirst()
+            c.getInt(0)
+        }
+
+    @Test
     fun insertDeck_appearsInDeckList() = runBlocking {
         dao.insertDeck(Deck(name = "Farver"))
         dao.insertDeck(Deck(name = "Dyr"))
