@@ -13,14 +13,14 @@ En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på 
 ## Teknik
 
 - Kotlin + Jetpack Compose (Material 3), Gradle med Kotlin DSL og version catalog (`gradle/libs.versions.toml`).
-- Pakke / applicationId: `com.example.lishan`
+- Pakke / applicationId: `dk.lishan.app`
 - minSdk 24, targetSdk/compileSdk 37
 - Git-repo på branch `main` med remote `origin` → https://github.com/hebbel/lishanapp (GitHub-konto `hebbel`). Commit-beskeder skrives på dansk.
 - Room 2.8 (via KSP) til lagring. Ingen ViewModel eller Navigation Compose endnu — navigation er en `Screen`-sealed interface + én state-variabel i `LishanApp`, som også håndterer tilbage-knappen. Databasekald startes med `rememberCoroutineScope` i `LishanApp`; skærmene selv kender ikke databasen.
 - UI-tilstand, der skal overleve at telefonen drejes (skærm, valgt kort/side, åbne dialoger, tekst i formularer), gemmes med `rememberSaveable` — ikke `remember`. `Screen` gemmes via `ScreenSaver` i `LishanApp.kt` (tal og tekst i en liste); en ny `Screen`-variant skal også tilføjes dér og i `ScreenSaverTest`. Parcelize blev prøvet, men dets compiler-plugin kobler sig ikke på med AGP's indbyggede Kotlin i dette projekt.
 - Databaseændringer: tæl `version` op i `LishanDatabase`, skriv en `Migration` i `data/Migrations.kt`, tilføj den i `addMigrations(...)`, og skriv en test i `androidTest/.../MigrationTest.kt`. Room gemmer skemaet for hver version i `app/schemas/` (skal i git). Der er ingen destruktiv fallback: mangler en migration, går appen ned i stedet for at slette data. Startdata lægges kun ind ved en helt ny installation.
 - Instrumenterede tests (DAO + migrations) kører på emulatoren: `./gradlew connectedDebugAndroidTest`. Unit tests: `./gradlew testDebugUnitTest`. `gradle.properties` har `leaveApksInstalledAfterRun=true`, så en testkørsel ikke afinstallerer appen og sletter dens data.
-- Kode i `app/src/main/java/com/example/lishan/`:
+- Kode i `app/src/main/java/dk/lishan/app/`:
   - `model/` — `Deck`, `Flashcard`, `CardSide`, `DeckSideLabel` (Room-tabeller) og `FlashcardWithSides` (kort + sider)
   - Sider og labels har en fast position (1–8). En kortside beholder sin position, også når sider før den er tomme, så den passer til deckets label. I UI'et sendes de rundt som "positionelle" lister (plads 0 = side 1, tomme strenge for huller) — se `toPositional()` og `sidesByPosition()`.
   - `data/` — `DeckDao`, `LishanDatabase` (inkl. startdata), `Migrations.kt`
@@ -44,7 +44,7 @@ Start appen og tjek enheder (adb ligger ikke i PATH):
 ```bash
 ADB=/c/Users/sjheb/AppData/Local/Android/Sdk/platform-tools/adb.exe
 $ADB devices
-$ADB shell monkey -p com.example.lishan -c android.intent.category.LAUNCHER 1
+$ADB shell monkey -p dk.lishan.app -c android.intent.category.LAUNCHER 1
 $ADB exec-out screencap -p > screen.png   # skærmbillede til at verificere UI
 ```
 

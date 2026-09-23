@@ -6,13 +6,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.lishan"
+    namespace = "dk.lishan.app"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.example.lishan"
+        applicationId = "dk.lishan.app"
         minSdk = 24
         targetSdk = 37
         versionCode = 1
