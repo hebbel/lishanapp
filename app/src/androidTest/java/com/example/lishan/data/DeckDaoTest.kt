@@ -93,6 +93,17 @@ class DeckDaoTest {
         assertEquals(2, count("card_sides"))
     }
 
+    @Test
+    fun unicodeText_isStoredAndReadBackUnchanged() = runBlocking {
+        val name = "Æbler & øl — ÆØÅ"
+        val sides = listOf("æøå ÆØÅ", "🐶🐱 👨‍👩‍👧", "狗", "כֶּלֶב", "كلب", "café")
+        val deckId = dao.insertDeck(Deck(name = name))
+        dao.insertCardWithSides(deckId, sides)
+
+        assertEquals(listOf(name), dao.getDecks().first().map { it.name })
+        assertEquals(sides, dao.getCards(deckId).first().single().visibleSides)
+    }
+
     private fun count(table: String): Int =
         db.openHelper.readableDatabase.query("SELECT COUNT(*) FROM $table").use { c ->
             c.moveToFirst()

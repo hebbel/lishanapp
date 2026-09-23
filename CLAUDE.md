@@ -51,5 +51,6 @@ Hvis buildet fejler med `Unable to delete directory ...`, skyldes det mapper med
 
 Emulator: Pixel 8 AVD (Android 17), `emulator-5554`.
 
+- Æ/Ø/Å fra PC-tastaturet når ikke frem, medmindre Androids fysiske tastaturlayout i emulatoren er sat til dansk; skærmtastaturet (Gboard) kræver dansk tilføjet som sprog. Appen selv filtrerer ikke tegn (se `UnicodeInputTest`). `adb shell input text` kan kun sende ASCII.
 - I Git Bash: sæt `export MSYS_NO_PATHCONV=1` før adb-kommandoer med enhedsstier (fx `/sdcard/...`), ellers laves de om til Windows-stier.
 - Hvis tryk ikke når frem til appen, og logcat viser `Not sending touch gesture ... NO_INPUT_CHANNEL` eller en ANR "Application does not have a focused window", er det emulatoren: `$ADB reboot`.
