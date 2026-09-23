@@ -74,10 +74,25 @@ class DeckDaoTest {
         dao.insertCardWithSides(deckId, listOf("rød", "red", "rojo"))
         val cardId = dao.getCards(deckId).first().single().card.id
 
-        dao.updateCardSides(cardId, listOf("", "blå", "blue"))
+        dao.updateCard(cardId, listOf("", "blå", "blue"), notes = "", comment = "")
 
         assertEquals(listOf("blå", "blue"), dao.getCards(deckId).first().single().visibleSides)
         assertEquals(2, count("card_sides"))
+    }
+
+    @Test
+    fun notesAndComment_areSavedAndUpdated() = runBlocking {
+        val deckId = dao.insertDeck(Deck(name = "Dyr"))
+        dao.insertCardWithSides(deckId, listOf("hund", "dog"), notes = " min note ", comment = "hyppigt ord")
+        val card = dao.getCards(deckId).first().single().card
+        assertEquals("min note", card.notes)
+        assertEquals("hyppigt ord", card.comment)
+
+        dao.updateCard(card.id, listOf("hund", "dog"), notes = "ny note", comment = "")
+
+        val updated = dao.getCards(deckId).first().single().card
+        assertEquals("ny note", updated.notes)
+        assertEquals("", updated.comment)
     }
 
     @Test

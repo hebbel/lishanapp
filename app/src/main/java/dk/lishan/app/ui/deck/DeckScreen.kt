@@ -123,6 +123,13 @@ fun DeckScreen(
                 )
             }
             Text("${position + 1} / ${cards.size}")
+            // Brugerens egne noter vises under kortet, hvis der er nogen.
+            if (card.card.notes.isNotBlank()) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("Noter", style = MaterialTheme.typography.labelMedium)
+                    Text(card.card.notes, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
             Row {
                 TextButton(onClick = { onEditCard(card, position) }) { Text("Ret kort") }
                 TextButton(onClick = { cardToDeleteId = card.card.id }) { Text("Slet kort") }

@@ -47,6 +47,8 @@ sealed interface Screen {
         val sides: List<String>,
         val cardIndex: Int,
         val labels: List<String>,
+        val notes: String,
+        val comment: String,
     ) : Screen
 }
 
@@ -65,7 +67,7 @@ internal val ScreenSaver = listSaver<Screen, Any>(
             is Screen.NewCard -> listOf("NewCard", screen.deck.id, screen.deck.name, ArrayList(screen.labels))
             is Screen.EditCard -> listOf(
                 "EditCard", screen.deck.id, screen.deck.name, screen.cardId, screen.cardIndex, ArrayList(screen.sides),
-                ArrayList(screen.labels),
+                ArrayList(screen.labels), screen.notes, screen.comment,
             )
         }
     },
@@ -85,6 +87,8 @@ internal val ScreenSaver = listSaver<Screen, Any>(
                 sides = strings(5),
                 cardIndex = saved[4] as Int,
                 labels = strings(6),
+                notes = saved[7] as String,
+                comment = saved[8] as String,
             )
             else -> Screen.DeckList
         }
@@ -161,7 +165,10 @@ fun LishanApp(dao: DeckDao) {
                     initialIndex = current.cardIndex,
                     onBack = { screen = Screen.DeckList },
                     onEditCard = { card, index ->
-                        screen = Screen.EditCard(deck, card.card.id, card.sidesByPosition(), index, positionalLabels)
+                        screen = Screen.EditCard(
+                            deck, card.card.id, card.sidesByPosition(), index, positionalLabels,
+                            notes = card.card.notes, comment = card.card.comment,
+                        )
                     },
                     onDeleteCard = { card -> scope.launch { dao.deleteCard(card.card.id) } },
                     modifier = contentModifier,
@@ -201,9 +208,9 @@ fun LishanApp(dao: DeckDao) {
             is Screen.NewCard -> CardFormScreen(
                 title = "Nyt kort i ${current.deck.name}",
                 labels = current.labels,
-                onSave = { sides ->
+                onSave = { sides, notes, comment ->
                     scope.launch {
-                        dao.insertCardWithSides(current.deck.id, sides)
+                        dao.insertCardWithSides(current.deck.id, sides, notes, comment)
                         screen = Screen.DeckDetail(current.deck)
                     }
                 },
@@ -215,9 +222,11 @@ fun LishanApp(dao: DeckDao) {
                 title = "Ret kort",
                 initialSides = current.sides,
                 labels = current.labels,
-                onSave = { sides ->
+                initialNotes = current.notes,
+                initialComment = current.comment,
+                onSave = { sides, notes, comment ->
                     scope.launch {
-                        dao.updateCardSides(current.cardId, sides)
+                        dao.updateCard(current.cardId, sides, notes, comment)
                         screen = Screen.DeckDetail(current.deck, current.cardIndex)
                     }
                 },

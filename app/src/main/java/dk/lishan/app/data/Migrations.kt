@@ -75,3 +75,14 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         )
     }
 }
+
+/**
+ * 3 → 4: Kort får noter og kommentar. Kolonner kan tilføjes direkte (i modsætning til at
+ * fjerne dem), så tabellen skal ikke bygges om. Eksisterende kort får tomme felter.
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `flashcards` ADD COLUMN `notes` TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE `flashcards` ADD COLUMN `comment` TEXT NOT NULL DEFAULT ''")
+    }
+}

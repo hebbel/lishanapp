@@ -29,6 +29,8 @@ class ScreenSaverTest {
                 sides = listOf("hund", "", "perro"),
                 cardIndex = 1,
                 labels = listOf("Dansk", "Engelsk"),
+                notes = "Husk kønnet",
+                comment = "",
             ),
         )
         for (screen in screens) {

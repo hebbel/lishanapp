@@ -19,10 +19,11 @@ import dk.lishan.app.model.Flashcard
  *
  * Version 2: kortenes indhold flyttet fra front/back til tabellen card_sides.
  * Version 3: ny tabel deck_side_labels med labels på et decks sider.
+ * Version 4: kolonnerne notes og comment på flashcards.
  */
 @Database(
     entities = [Deck::class, Flashcard::class, CardSide::class, DeckSideLabel::class],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class LishanDatabase : RoomDatabase() {
@@ -42,7 +43,7 @@ abstract class LishanDatabase : RoomDatabase() {
                 )
                     .addCallback(SeedData)
                     // Mangler der en migration, går appen ned i stedet for at slette data i stilhed.
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { instance = it }
             }

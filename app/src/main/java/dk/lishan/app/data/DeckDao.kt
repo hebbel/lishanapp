@@ -62,24 +62,34 @@ abstract class DeckDao {
      * Gemmer et nyt kort med dets sider. [sides] er teksten pr. position (plads 0 = side 1).
      * Tomme sider gemmes ikke, men de øvrige beholder deres position, så de passer til
      * deckets labels. Højst [CardSide.MAX_SIDES] positioner bruges.
+     * [notes] og [comment] gemmes på selve kortet.
      * `@Transaction`: enten gemmes både kort og sider, eller ingenting.
      */
     @Transaction
-    open suspend fun insertCardWithSides(deckId: Long, sides: List<String>) {
-        val cardId = insertCard(Flashcard(deckId = deckId))
+    open suspend fun insertCardWithSides(
+        deckId: Long,
+        sides: List<String>,
+        notes: String = "",
+        comment: String = "",
+    ) {
+        val cardId = insertCard(Flashcard(deckId = deckId, notes = notes.trim(), comment = comment.trim()))
         insertSides(toCardSides(cardId, sides))
     }
 
+    @Query("UPDATE flashcards SET notes = :notes, comment = :comment WHERE id = :cardId")
+    abstract suspend fun updateNotesAndComment(cardId: Long, notes: String, comment: String)
+
     /**
-     * Erstatter alle sider på et eksisterende kort. Samme regler som [insertCardWithSides].
-     * Det er enklere at slette de gamle sider og indsætte de nye end at finde ud af,
-     * hvilke der er ændret, tilføjet eller fjernet.
+     * Gemmer ændringer i et eksisterende kort: erstatter alle sider og sætter noter og kommentar.
+     * Samme regler for sider som [insertCardWithSides]. Det er enklere at slette de gamle sider
+     * og indsætte de nye end at finde ud af, hvilke der er ændret, tilføjet eller fjernet.
      */
     @Transaction
-    open suspend fun updateCardSides(cardId: Long, sides: List<String>) {
+    open suspend fun updateCard(cardId: Long, sides: List<String>, notes: String, comment: String) {
         val newSides = toCardSides(cardId, sides)
         deleteSides(cardId)
         insertSides(newSides)
+        updateNotesAndComment(cardId, notes.trim(), comment.trim())
     }
 
     private fun toCardSides(cardId: Long, sides: List<String>): List<CardSide> {
