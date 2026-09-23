@@ -1,0 +1,7 @@
+# Normaliser linjeskift i git; scripts skal have de linjeskift deres platform kræver
+* text=auto
+gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary
+*.png binary
+*.webp binary
