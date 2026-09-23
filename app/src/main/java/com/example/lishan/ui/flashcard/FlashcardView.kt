@@ -9,26 +9,27 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.lishan.model.Flashcard
 import com.example.lishan.ui.theme.LishanTheme
 
 /**
- * Viser ét flashcard. Et tryk vender kortet mellem forside og bagside.
+ * Viser ét flashcard. Et tryk går til næste side; efter den sidste starter kortet forfra.
+ *
+ * @param sides teksten på kortets sider i rækkefølge. Kun sider med indhold skal med.
  */
 @Composable
-fun FlashcardView(card: Flashcard, modifier: Modifier = Modifier) {
-    // Husker om kortet er vendt. Når værdien ændres, tegner Compose kortet igen.
-    var showBack by remember { mutableStateOf(false) }
+fun FlashcardView(sides: List<String>, modifier: Modifier = Modifier) {
+    // Husker hvilken side der vises. Når værdien ændres, tegner Compose kortet igen.
+    var sideIndex by remember { mutableIntStateOf(0) }
 
     Card(
-        onClick = { showBack = !showBack },
+        onClick = { if (sides.isNotEmpty()) sideIndex = (sideIndex + 1) % sides.size },
         modifier = modifier
             .fillMaxWidth()
             .height(200.dp)
@@ -41,9 +42,17 @@ fun FlashcardView(card: Flashcard, modifier: Modifier = Modifier) {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = if (showBack) card.back else card.front,
+                text = sides.getOrElse(sideIndex) { "" },
                 style = MaterialTheme.typography.headlineMedium
             )
+            // Viser kun sidetælleren, når der er mere end én side at bladre i.
+            if (sides.size > 1) {
+                Text(
+                    text = "${sideIndex + 1}/${sides.size}",
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.align(Alignment.BottomEnd)
+                )
+            }
         }
     }
 }
@@ -53,7 +62,7 @@ fun FlashcardView(card: Flashcard, modifier: Modifier = Modifier) {
 fun FlashcardViewPreview() {
     LishanTheme {
         FlashcardView(
-            card = Flashcard(front = "hund", back = "dog"),
+            sides = listOf("hund", "dog", "perro"),
             modifier = Modifier.padding(16.dp)
         )
     }

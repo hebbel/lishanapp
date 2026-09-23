@@ -6,7 +6,8 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * Ét flashcard: et spørgsmål på forsiden og svaret på bagsiden.
+ * Ét flashcard i et deck. Selve indholdet ligger i [CardSide]-tabellen,
+ * så et kort kan have mellem 1 og 8 sider.
  * `deckId` peger på det deck, kortet hører til. Slettes decket, slettes dets kort også (CASCADE).
  */
 @Entity(
@@ -24,6 +25,4 @@ import androidx.room.PrimaryKey
 data class Flashcard(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val deckId: Long = 0,
-    val front: String,
-    val back: String,
 )

@@ -1,6 +1,6 @@
 # Lishan
 
-En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på et deck viser dets kort ét ad gangen (tryk = vend, swipe venstre = næste, starter forfra efter sidste). Data ligger i en Room-database, der ved første start får decket "Dyr" (hund/dog, kat/cat).
+En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på et deck viser dets kort ét ad gangen (tryk = næste side, swipe venstre = næste kort; begge starter forfra efter sidste). Data ligger i en Room-database, der ved første start får decket "Dyr" (hund/dog/perro, kat/cat). Et kort har 1–8 sider; kun sider med indhold vises.
 
 ## Arbejdsform
 
@@ -17,8 +17,9 @@ En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på 
 - minSdk 24, targetSdk/compileSdk 37
 - Git-repo på branch `main` med remote `origin` → https://github.com/hebbel/lishanapp (GitHub-konto `hebbel`). Commit-beskeder skrives på dansk.
 - Room 2.8 (via KSP) til lagring. Ingen ViewModel eller Navigation Compose endnu — navigation er en simpel `selectedDeck`-variabel i `LishanApp`.
+- Databasen bruger `fallbackToDestructiveMigration`: tælles `version` op, slettes data. Startdata kommer kun med ved en helt ny database, så ryd appens data bagefter: `$ADB shell pm clear com.example.lishan`. Skal erstattes af migrations, før der er rigtige brugerdata.
 - Kode i `app/src/main/java/com/example/lishan/`:
-  - `model/` — `Deck`, `Flashcard` (også Room-tabeller)
+  - `model/` — `Deck`, `Flashcard`, `CardSide` (Room-tabeller) og `FlashcardWithSides` (kort + sider)
   - `data/` — `DeckDao`, `LishanDatabase` (inkl. startdata)
   - `ui/LishanApp.kt` — rod-UI, vælger skærm
   - `ui/decklist/`, `ui/deck/`, `ui/flashcard/` — skærme og komponenter; tema i `ui/theme/`

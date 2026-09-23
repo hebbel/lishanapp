@@ -18,7 +18,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.lishan.model.CardSide
 import com.example.lishan.model.Flashcard
+import com.example.lishan.model.FlashcardWithSides
 import com.example.lishan.ui.flashcard.FlashcardView
 import com.example.lishan.ui.theme.LishanTheme
 
@@ -29,7 +31,7 @@ import com.example.lishan.ui.theme.LishanTheme
 @Composable
 fun DeckScreen(
     deckName: String,
-    cards: List<Flashcard>,
+    cards: List<FlashcardWithSides>,
     modifier: Modifier = Modifier,
 ) {
     var index by remember { mutableIntStateOf(0) }
@@ -64,9 +66,9 @@ fun DeckScreen(
         }
 
         val card = cards[index % cards.size]
-        // `key` giver hvert kort sin egen FlashcardView, så et nyt kort altid starter med forsiden op.
-        key(card.id) {
-            FlashcardView(card = card)
+        // `key` giver hvert kort sin egen FlashcardView, så et nyt kort altid starter på første side.
+        key(card.card.id) {
+            FlashcardView(sides = card.visibleSides)
         }
         Text("${index % cards.size + 1} / ${cards.size}")
     }
@@ -79,8 +81,20 @@ fun DeckScreenPreview() {
         DeckScreen(
             deckName = "Dyr",
             cards = listOf(
-                Flashcard(id = 1, front = "hund", back = "dog"),
-                Flashcard(id = 2, front = "kat", back = "cat"),
+                FlashcardWithSides(
+                    card = Flashcard(id = 1),
+                    sides = listOf(
+                        CardSide(cardId = 1, position = 1, text = "hund"),
+                        CardSide(cardId = 1, position = 2, text = "dog"),
+                    ),
+                ),
+                FlashcardWithSides(
+                    card = Flashcard(id = 2),
+                    sides = listOf(
+                        CardSide(cardId = 2, position = 1, text = "kat"),
+                        CardSide(cardId = 2, position = 2, text = "cat"),
+                    ),
+                ),
             ),
         )
     }
