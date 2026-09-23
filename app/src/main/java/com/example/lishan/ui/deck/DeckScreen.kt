@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -29,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.example.lishan.model.CardSide
 import com.example.lishan.model.Flashcard
 import com.example.lishan.model.FlashcardWithSides
+import com.example.lishan.ui.ConfirmDeleteDialog
 import com.example.lishan.ui.flashcard.FlashcardView
 import com.example.lishan.ui.theme.LishanTheme
 
@@ -36,8 +36,8 @@ import com.example.lishan.ui.theme.LishanTheme
  * Viser kortene i ét deck, ét ad gangen. Swipe til venstre går til næste kort;
  * efter det sidste kort starter decket forfra.
  *
- * Knapperne til at omdøbe/slette decket og rette/slette det viste kort melder bare tilbage
- * via callbacks; sletning skal først bekræftes i en dialog.
+ * Knapperne til at rette/slette det viste kort melder bare tilbage via callbacks;
+ * sletning skal først bekræftes i en dialog. Decket selv omdøbes/slettes fra listen over decks.
  *
  * @param initialIndex det kort, skærmen starter på (fx når man kommer tilbage efter at have rettet et kort).
  */
@@ -45,8 +45,6 @@ import com.example.lishan.ui.theme.LishanTheme
 fun DeckScreen(
     deckName: String,
     cards: List<FlashcardWithSides>,
-    onRenameDeck: () -> Unit,
-    onDeleteDeck: () -> Unit,
     onEditCard: (card: FlashcardWithSides, index: Int) -> Unit,
     onDeleteCard: (card: FlashcardWithSides) -> Unit,
     modifier: Modifier = Modifier,
@@ -54,8 +52,7 @@ fun DeckScreen(
 ) {
     // `rememberSaveable`: overlever at skærmen genskabes, fx når telefonen drejes.
     var index by rememberSaveable { mutableIntStateOf(initialIndex) }
-    // Hvilken bekræftelsesdialog der er åben, hvis nogen. For kortet gemmes kun id'et.
-    var confirmDeleteDeck by rememberSaveable { mutableStateOf(false) }
+    // Det kort, hvis slet-dialog er åben, hvis nogen. Kun id'et gemmes.
     var cardToDeleteId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     Column(
@@ -83,10 +80,6 @@ fun DeckScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(deckName, style = MaterialTheme.typography.headlineSmall)
-        Row {
-            TextButton(onClick = onRenameDeck) { Text("Omdøb") }
-            TextButton(onClick = { confirmDeleteDeck = true }) { Text("Slet deck") }
-        }
 
         if (cards.isEmpty()) {
             Text("Dette deck har ingen kort endnu. Tryk på + for at tilføje et.")
@@ -107,22 +100,6 @@ fun DeckScreen(
         Spacer(Modifier.height(72.dp))
     }
 
-    if (confirmDeleteDeck) {
-        ConfirmDeleteDialog(
-            title = "Slet deck?",
-            text = if (cards.isEmpty()) {
-                "\"$deckName\" slettes. Det kan ikke fortrydes."
-            } else {
-                "\"$deckName\" og alle dets ${cards.size} kort slettes. Det kan ikke fortrydes."
-            },
-            onConfirm = {
-                confirmDeleteDeck = false
-                onDeleteDeck()
-            },
-            onDismiss = { confirmDeleteDeck = false },
-        )
-    }
-
     cards.find { it.card.id == cardToDeleteId }?.let { card ->
         ConfirmDeleteDialog(
             title = "Slet kort?",
@@ -134,22 +111,6 @@ fun DeckScreen(
             onDismiss = { cardToDeleteId = null },
         )
     }
-}
-
-@Composable
-private fun ConfirmDeleteDialog(
-    title: String,
-    text: String,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = { Text(text) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text("Slet") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Annullér") } },
-    )
 }
 
 @Preview(showBackground = true)
@@ -174,8 +135,6 @@ fun DeckScreenPreview() {
                     ),
                 ),
             ),
-            onRenameDeck = {},
-            onDeleteDeck = {},
             onEditCard = { _, _ -> },
             onDeleteCard = {},
         )

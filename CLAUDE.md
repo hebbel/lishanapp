@@ -1,6 +1,6 @@
 # Lishan
 
-En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på et deck viser dets kort ét ad gangen (tryk = næste side, swipe venstre = næste kort; begge starter forfra efter sidste). Data ligger i en Room-database, der ved første start får decket "Dyr" (hund/dog/perro, kat/cat). Et kort har 1–8 sider; kun sider med indhold vises. "+" på startskærmen opretter et deck; "+" i et deck opretter et kort. Inde i et deck kan decket omdøbes/slettes og det viste kort rettes/slettes (sletning bekræftes i en dialog).
+En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på et deck viser dets kort ét ad gangen (tryk = næste side, swipe venstre = næste kort; begge starter forfra efter sidste). Data ligger i en Room-database, der ved første start får decket "Dyr" (hund/dog/perro, kat/cat). Et kort har 1–8 sider; kun sider med indhold vises. "+" på startskærmen opretter et deck; "+" i et deck opretter et kort. Decks omdøbes/slettes via ⋮-menuen i højre side af listen; inde i et deck kan det viste kort rettes/slettes. Sletning bekræftes i en dialog (`ui/ConfirmDeleteDialog.kt`).
 
 ## Arbejdsform
 
@@ -25,6 +25,7 @@ En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på 
   - `data/` — `DeckDao`, `LishanDatabase` (inkl. startdata), `Migrations.kt`
   - `ui/LishanApp.kt` — rod-UI: `Screen`-typen, vælger skærm, "+"-knap, tilbage-knap, gemmer i databasen
   - `ui/decklist/`, `ui/deck/`, `ui/deckform/`, `ui/cardform/` (bruges både til at oprette og rette), `ui/flashcard/` — skærme og komponenter; tema i `ui/theme/`
+- Ikoner lægges ind som vektorfiler i `res/drawable/` (fx `ic_more_vert.xml`) i stedet for at bruge biblioteket material-icons.
 
 Avast opsnapper HTTPS, og Java stoler ikke på Avasts certifikat, så Gradle kan ikke hente nye afhængigheder. Der er lagt undtagelser ind i Avast for `dl.google.com`, `repo.maven.apache.org`, `plugins.gradle.org` og `services.gradle.org`. Fejler en download med "could not resolve", så tjek certifikatudstederen med `openssl s_client -connect <host>:443` — står der "Avast", mangler der en undtagelse.
 

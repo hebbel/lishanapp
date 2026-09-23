@@ -91,7 +91,6 @@ fun LishanApp(dao: DeckDao) {
     // Androids tilbage-knap/-gestus går ét skridt tilbage i stedet for at lukke appen.
     BackHandler(enabled = screen != Screen.DeckList) {
         screen = when (val current = screen) {
-            is Screen.EditDeck -> Screen.DeckDetail(current.deck)
             is Screen.NewCard -> Screen.DeckDetail(current.deck)
             is Screen.EditCard -> Screen.DeckDetail(current.deck, current.cardIndex)
             else -> Screen.DeckList
@@ -121,6 +120,8 @@ fun LishanApp(dao: DeckDao) {
                 DeckListScreen(
                     decks = decks,
                     onDeckClick = { screen = Screen.DeckDetail(it) },
+                    onRenameDeck = { screen = Screen.EditDeck(it) },
+                    onDeleteDeck = { deck -> scope.launch { dao.deleteDeck(deck) } },
                     modifier = contentModifier,
                 )
             }
@@ -132,11 +133,6 @@ fun LishanApp(dao: DeckDao) {
                     deckName = deck.name,
                     cards = cards,
                     initialIndex = current.cardIndex,
-                    onRenameDeck = { screen = Screen.EditDeck(deck) },
-                    onDeleteDeck = {
-                        screen = Screen.DeckList
-                        scope.launch { dao.deleteDeck(deck) }
-                    },
                     onEditCard = { card, index ->
                         screen = Screen.EditCard(deck, card.card.id, card.visibleSides, index)
                     },
@@ -167,10 +163,10 @@ fun LishanApp(dao: DeckDao) {
                     val renamed = current.deck.copy(name = name)
                     scope.launch {
                         dao.updateDeck(renamed)
-                        screen = Screen.DeckDetail(renamed)
+                        screen = Screen.DeckList
                     }
                 },
-                onCancel = { screen = Screen.DeckDetail(current.deck) },
+                onCancel = { screen = Screen.DeckList },
                 modifier = contentModifier,
             )
 
