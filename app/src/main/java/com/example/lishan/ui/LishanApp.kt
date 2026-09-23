@@ -133,6 +133,7 @@ fun LishanApp(dao: DeckDao) {
                     deckName = deck.name,
                     cards = cards,
                     initialIndex = current.cardIndex,
+                    onBack = { screen = Screen.DeckList },
                     onEditCard = { card, index ->
                         screen = Screen.EditCard(deck, card.card.id, card.visibleSides, index)
                     },

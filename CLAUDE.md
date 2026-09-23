@@ -1,6 +1,6 @@
 # Lishan
 
-En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på et deck viser dets kort ét ad gangen (tryk = næste side, swipe venstre = næste kort; begge starter forfra efter sidste). Data ligger i en Room-database, der ved første start får decket "Dyr" (hund/dog/perro, kat/cat). Et kort har 1–8 sider; kun sider med indhold vises. "+" på startskærmen opretter et deck; "+" i et deck opretter et kort. Decks omdøbes/slettes via ⋮-menuen i højre side af listen; inde i et deck kan det viste kort rettes/slettes. Sletning bekræftes i en dialog (`ui/ConfirmDeleteDialog.kt`).
+En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på et deck viser dets kort ét ad gangen (tryk = næste side, swipe venstre = næste kort; begge starter forfra efter sidste). Data ligger i en Room-database, der ved første start får decket "Dyr" (hund/dog/perro, kat/cat). Et kort har 1–8 sider; kun sider med indhold vises. "+" på startskærmen opretter et deck; "+" i et deck opretter et kort. Decks omdøbes/slettes via ⋮-menuen i højre side af listen; inde i et deck kan det viste kort rettes/slettes, og ←-pilen ved deck-navnet går tilbage til listen. Sletning bekræftes i en dialog (`ui/ConfirmDeleteDialog.kt`).
 
 ## Arbejdsform
 
