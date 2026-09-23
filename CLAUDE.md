@@ -1,6 +1,6 @@
 # Lishan
 
-En flashcard-app til Android. Projektet er i en tidlig fase: der er en `Flashcard`-datamodel og en `FlashcardView`, som `MainActivity` midlertidigt viser direkte.
+En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på et deck viser dets kort ét ad gangen (tryk = vend, swipe venstre = næste, starter forfra efter sidste). Data ligger i en Room-database, der ved første start får decket "Dyr" (hund/dog, kat/cat).
 
 ## Arbejdsform
 
@@ -15,8 +15,15 @@ En flashcard-app til Android. Projektet er i en tidlig fase: der er en `Flashcar
 - Kotlin + Jetpack Compose (Material 3), Gradle med Kotlin DSL og version catalog (`gradle/libs.versions.toml`).
 - Pakke / applicationId: `com.example.lishan`
 - minSdk 24, targetSdk/compileSdk 37
-- Git-repo på branch `main` (kun lokalt, ingen remote endnu). Commit-beskeder skrives på dansk.
-- Kode: `app/src/main/java/com/example/lishan/` (`MainActivity.kt`, tema i `ui/theme/`)
+- Git-repo på branch `main` med remote `origin` → https://github.com/hebbel/lishanapp (GitHub-konto `hebbel`). Commit-beskeder skrives på dansk.
+- Room 2.8 (via KSP) til lagring. Ingen ViewModel eller Navigation Compose endnu — navigation er en simpel `selectedDeck`-variabel i `LishanApp`.
+- Kode i `app/src/main/java/com/example/lishan/`:
+  - `model/` — `Deck`, `Flashcard` (også Room-tabeller)
+  - `data/` — `DeckDao`, `LishanDatabase` (inkl. startdata)
+  - `ui/LishanApp.kt` — rod-UI, vælger skærm
+  - `ui/decklist/`, `ui/deck/`, `ui/flashcard/` — skærme og komponenter; tema i `ui/theme/`
+
+Avast's HTTPS-scanning skal være slået fra — ellers kan Gradle ikke hente nye afhængigheder (Java stoler ikke på Avasts certifikat).
 
 ## Byg og kør
 
@@ -36,6 +43,6 @@ $ADB shell monkey -p com.example.lishan -c android.intent.category.LAUNCHER 1
 $ADB exec-out screencap -p > screen.png   # skærmbillede til at verificere UI
 ```
 
-Hvis buildet fejler med `Unable to delete directory ...app\build\intermediates\...`, er det en kortvarig fillås. Projektet lå tidligere i `Documents` og blev synkroniseret af Google Drive; det er flyttet til `C:\Users\sjheb\code` for at undgå det. Avast kan også være årsagen. Slet de nævnte mapper med `rm -rf` og byg igen.
+Hvis buildet fejler med `Unable to delete directory ...`, skyldes det mapper med Windows-attributten ReadOnly (Gradle kan ikke slette dem, men `rm -rf` kan). Ret det med `attrib -R "C:\Users\sjheb\code\lishanapp\*" /S /D` i PowerShell og byg igen.
 
 Emulator: Pixel 8 AVD (Android 17), `emulator-5554`.
