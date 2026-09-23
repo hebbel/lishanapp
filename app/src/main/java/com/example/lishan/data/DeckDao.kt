@@ -8,6 +8,7 @@ import androidx.room.Transaction
 import androidx.room.Update
 import com.example.lishan.model.CardSide
 import com.example.lishan.model.Deck
+import com.example.lishan.model.DeckSideLabel
 import com.example.lishan.model.Flashcard
 import com.example.lishan.model.FlashcardWithSides
 import kotlinx.coroutines.flow.Flow
@@ -58,8 +59,9 @@ abstract class DeckDao {
     abstract suspend fun deleteSides(cardId: Long)
 
     /**
-     * Gemmer et nyt kort med dets sider. Tomme sider springes over, og de øvrige
-     * nummereres 1, 2, 3 … i rækkefølge. Højst [CardSide.MAX_SIDES] sider gemmes.
+     * Gemmer et nyt kort med dets sider. [sides] er teksten pr. position (plads 0 = side 1).
+     * Tomme sider gemmes ikke, men de øvrige beholder deres position, så de passer til
+     * deckets labels. Højst [CardSide.MAX_SIDES] positioner bruges.
      * `@Transaction`: enten gemmes både kort og sider, eller ingenting.
      */
     @Transaction
@@ -81,8 +83,47 @@ abstract class DeckDao {
     }
 
     private fun toCardSides(cardId: Long, sides: List<String>): List<CardSide> {
-        val texts = sides.map { it.trim() }.filter { it.isNotEmpty() }.take(CardSide.MAX_SIDES)
-        require(texts.isNotEmpty()) { "Et kort skal have mindst én side med indhold" }
-        return texts.mapIndexed { i, text -> CardSide(cardId = cardId, position = i + 1, text = text) }
+        val result = sides.take(CardSide.MAX_SIDES)
+            .mapIndexed { i, text -> CardSide(cardId = cardId, position = i + 1, text = text.trim()) }
+            .filter { it.text.isNotEmpty() }
+        require(result.isNotEmpty()) { "Et kort skal have mindst én side med indhold" }
+        return result
     }
+
+    // --- Labels på et decks sider ---
+
+    @Query("SELECT * FROM deck_side_labels WHERE deckId = :deckId ORDER BY position")
+    abstract fun getLabels(deckId: Long): Flow<List<DeckSideLabel>>
+
+    /** Som [getLabels], men henter én gang i stedet for at følge med i ændringer. */
+    @Query("SELECT * FROM deck_side_labels WHERE deckId = :deckId ORDER BY position")
+    abstract suspend fun getLabelsOnce(deckId: Long): List<DeckSideLabel>
+
+    @Query("DELETE FROM deck_side_labels WHERE deckId = :deckId")
+    abstract suspend fun deleteLabels(deckId: Long)
+
+    @Insert
+    abstract suspend fun insertLabels(labels: List<DeckSideLabel>)
+
+    /** Opretter et deck med labels (plads 0 = side 1) og returnerer dets id. */
+    @Transaction
+    open suspend fun insertDeckWithLabels(name: String, labels: List<String>): Long {
+        val deckId = insertDeck(Deck(name = name))
+        insertLabels(toLabels(deckId, labels))
+        return deckId
+    }
+
+    /** Gemmer et decks navn og erstatter alle dets labels. */
+    @Transaction
+    open suspend fun updateDeckWithLabels(deck: Deck, labels: List<String>) {
+        updateDeck(deck)
+        deleteLabels(deck.id)
+        insertLabels(toLabels(deck.id, labels))
+    }
+
+    /** Tomme labels gemmes ikke; de øvrige beholder deres position. */
+    private fun toLabels(deckId: Long, labels: List<String>): List<DeckSideLabel> =
+        labels.take(CardSide.MAX_SIDES)
+            .mapIndexed { i, label -> DeckSideLabel(deckId = deckId, position = i + 1, label = label.trim()) }
+            .filter { it.label.isNotEmpty() }
 }

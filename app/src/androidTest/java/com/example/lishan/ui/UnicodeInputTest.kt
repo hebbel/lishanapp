@@ -38,15 +38,26 @@ class UnicodeInputTest {
 
     @Test
     fun deckForm_keepsAllCharacters() {
-        var saved: String? = null
+        var savedName: String? = null
+        var savedLabels: List<String>? = null
         compose.setContent {
-            DeckFormScreen(title = "Nyt deck", saveLabel = "Opret", onSave = { saved = it }, onCancel = {})
+            DeckFormScreen(
+                title = "Nyt deck",
+                saveLabel = "Opret",
+                onSave = { name, labels ->
+                    savedName = name
+                    savedLabels = labels
+                },
+                onCancel = {},
+            )
         }
 
         compose.onNodeWithText("Navn").performTextInput(UNICODE_1)
+        compose.onNodeWithText("Side 1").performTextInput(UNICODE_2)
         compose.onNodeWithText("Opret").performClick()
 
-        assertEquals(UNICODE_1, saved)
+        assertEquals(UNICODE_1, savedName)
+        assertEquals(listOf(UNICODE_2, ""), savedLabels)
     }
 
     companion object {

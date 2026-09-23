@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.lishan.model.Deck
+import com.example.lishan.model.toPositional
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -34,15 +35,37 @@ class DeckDaoTest {
     fun tearDown() = db.close()
 
     @Test
-    fun insertCardWithSides_skipsBlankSidesAndNumbersTheRest() = runBlocking {
+    fun insertCardWithSides_skipsBlankSidesButKeepsPositions() = runBlocking {
         val deckId = dao.insertDeck(Deck(name = "Farver"))
 
         dao.insertCardWithSides(deckId, listOf("rød", "", "  red ", "   ", "rojo"))
 
         val cards = dao.getCards(deckId).first()
         assertEquals(1, cards.size)
-        assertEquals(listOf(1, 2, 3), cards[0].sides.sortedBy { it.position }.map { it.position })
+        // Siderne beholder deres position, så de passer til deckets labels.
+        assertEquals(listOf(1, 3, 5), cards[0].visibleCardSides.map { it.position })
         assertEquals(listOf("rød", "red", "rojo"), cards[0].visibleSides)
+        assertEquals(listOf("rød", "", "red", "", "rojo"), cards[0].sidesByPosition())
+    }
+
+    @Test
+    fun deckLabels_areSavedWithPositionsAndReplacedOnUpdate() = runBlocking {
+        val deckId = dao.insertDeckWithLabels("Dyr", listOf("Dansk", "", " Spansk "))
+        assertEquals(listOf("Dansk", "", "Spansk"), dao.getLabelsOnce(deckId).toPositional())
+
+        dao.updateDeckWithLabels(Deck(id = deckId, name = "Dyr!"), listOf("", "Engelsk"))
+
+        assertEquals(listOf("", "Engelsk"), dao.getLabels(deckId).first().toPositional())
+        assertEquals(listOf("Dyr!"), dao.getDecks().first().map { it.name })
+    }
+
+    @Test
+    fun deleteDeck_alsoDeletesItsLabels() = runBlocking {
+        val deckId = dao.insertDeckWithLabels("Dyr", listOf("Dansk", "Engelsk"))
+
+        dao.deleteDeck(Deck(id = deckId, name = "Dyr"))
+
+        assertEquals(0, count("deck_side_labels"))
     }
 
     @Test

@@ -26,7 +26,7 @@ import com.example.lishan.ui.theme.LishanTheme
 
 /**
  * Hovedskærmen: en liste over alle decks. Et tryk på et deck kalder [onDeckClick].
- * ⋮-menuen i højre side af hver række kan omdøbe eller slette decket; sletning skal
+ * ⋮-menuen i højre side af hver række kan redigere (navn og labels) eller slette decket; sletning skal
  * først bekræftes i en dialog.
  *
  * Skærmen henter ikke selv data. Den får listen udefra og siger besked, når der trykkes.
@@ -36,7 +36,7 @@ import com.example.lishan.ui.theme.LishanTheme
 fun DeckListScreen(
     decks: List<Deck>,
     onDeckClick: (Deck) -> Unit,
-    onRenameDeck: (Deck) -> Unit,
+    onEditDeck: (Deck) -> Unit,
     onDeleteDeck: (Deck) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -51,7 +51,7 @@ fun DeckListScreen(
                 trailingContent = {
                     DeckMenu(
                         deckName = deck.name,
-                        onRename = { onRenameDeck(deck) },
+                        onEdit = { onEditDeck(deck) },
                         onDelete = { deckToDeleteId = deck.id },
                     )
                 },
@@ -78,7 +78,7 @@ fun DeckListScreen(
 @Composable
 private fun DeckMenu(
     deckName: String,
-    onRename: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -94,10 +94,10 @@ private fun DeckMenu(
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(
-                text = { Text("Omdøb") },
+                text = { Text("Rediger") },
                 onClick = {
                     expanded = false
-                    onRename()
+                    onEdit()
                 },
             )
             DropdownMenuItem(
@@ -118,7 +118,7 @@ fun DeckListScreenPreview() {
         DeckListScreen(
             decks = listOf(Deck(id = 1, name = "Dyr"), Deck(id = 2, name = "Farver")),
             onDeckClick = {},
-            onRenameDeck = {},
+            onEditDeck = {},
             onDeleteDeck = {},
         )
     }

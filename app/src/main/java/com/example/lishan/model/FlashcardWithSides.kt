@@ -12,7 +12,20 @@ data class FlashcardWithSides(
     @Relation(parentColumn = "id", entityColumn = "cardId")
     val sides: List<CardSide>,
 ) {
-    /** Teksten på de sider, der har indhold, i rækkefølge. Tomme sider springes over. */
+    /** De sider, der har indhold, sorteret efter position. Tomme sider springes over. */
+    val visibleCardSides: List<CardSide>
+        get() = sides.sortedBy { it.position }.filter { it.text.isNotBlank() }
+
+    /** Teksten på de sider, der har indhold, i rækkefølge. */
     val visibleSides: List<String>
-        get() = sides.sortedBy { it.position }.map { it.text }.filter { it.isNotBlank() }
+        get() = visibleCardSides.map { it.text }
+
+    /**
+     * Teksten som en liste, hvor plads 0 er side 1, plads 1 er side 2 osv. Positioner uden
+     * indhold er tomme strenge. Bruges til at udfylde formularen, når kortet rettes.
+     */
+    fun sidesByPosition(): List<String> {
+        val size = sides.maxOfOrNull { it.position } ?: 0
+        return List(size) { i -> sides.firstOrNull { it.position == i + 1 }?.text.orEmpty() }
+    }
 }

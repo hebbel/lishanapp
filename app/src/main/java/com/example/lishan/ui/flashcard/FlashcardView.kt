@@ -18,13 +18,16 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.lishan.ui.theme.LishanTheme
 
+/** Én side, som den vises på kortet: teksten og evt. deckets label for sidens position. */
+data class SideContent(val text: String, val label: String? = null)
+
 /**
  * Viser ét flashcard. Et tryk går til næste side; efter den sidste starter kortet forfra.
  *
- * @param sides teksten på kortets sider i rækkefølge. Kun sider med indhold skal med.
+ * @param sides kortets sider i rækkefølge. Kun sider med indhold skal med.
  */
 @Composable
-fun FlashcardView(sides: List<String>, modifier: Modifier = Modifier) {
+fun FlashcardView(sides: List<SideContent>, modifier: Modifier = Modifier) {
     // Husker hvilken side der vises. Når værdien ændres, tegner Compose kortet igen.
     var sideIndex by rememberSaveable { mutableIntStateOf(0) }
 
@@ -41,8 +44,16 @@ fun FlashcardView(sides: List<String>, modifier: Modifier = Modifier) {
                 .padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
+            val side = sides.getOrNull(sideIndex)
+            side?.label?.let { label ->
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.align(Alignment.TopStart)
+                )
+            }
             Text(
-                text = sides.getOrElse(sideIndex) { "" },
+                text = side?.text.orEmpty(),
                 style = MaterialTheme.typography.headlineMedium
             )
             // Viser kun sidetælleren, når der er mere end én side at bladre i.
@@ -62,7 +73,11 @@ fun FlashcardView(sides: List<String>, modifier: Modifier = Modifier) {
 fun FlashcardViewPreview() {
     LishanTheme {
         FlashcardView(
-            sides = listOf("hund", "dog", "perro"),
+            sides = listOf(
+                SideContent("hund", "Dansk"),
+                SideContent("dog", "Engelsk"),
+                SideContent("perro", "Spansk"),
+            ),
             modifier = Modifier.padding(16.dp)
         )
     }

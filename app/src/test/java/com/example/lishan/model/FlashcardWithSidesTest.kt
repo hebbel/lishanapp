@@ -17,6 +17,22 @@ class FlashcardWithSidesTest {
     }
 
     @Test
+    fun sidesByPosition_fillsGapsWithEmptyText() {
+        val card = cardWith(3 to "perro", 1 to "hund")
+        assertEquals(listOf("hund", "", "perro"), card.sidesByPosition())
+    }
+
+    @Test
+    fun labelsToPositional_fillsGapsWithEmptyText() {
+        val labels = listOf(
+            DeckSideLabel(deckId = 1, position = 3, label = "Spansk"),
+            DeckSideLabel(deckId = 1, position = 1, label = "Dansk"),
+        )
+        assertEquals(listOf("Dansk", "", "Spansk"), labels.toPositional())
+        assertEquals(emptyList<String>(), emptyList<DeckSideLabel>().toPositional())
+    }
+
+    @Test
     fun visibleSides_areSortedByPosition() {
         val card = cardWith(8 to "sidst", 1 to "først", 5 to "midt")
         assertEquals(listOf("først", "midt", "sidst"), card.visibleSides)

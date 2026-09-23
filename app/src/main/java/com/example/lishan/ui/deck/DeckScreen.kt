@@ -36,6 +36,7 @@ import com.example.lishan.model.Flashcard
 import com.example.lishan.model.FlashcardWithSides
 import com.example.lishan.ui.ConfirmDeleteDialog
 import com.example.lishan.ui.flashcard.FlashcardView
+import com.example.lishan.ui.flashcard.SideContent
 import com.example.lishan.ui.theme.LishanTheme
 
 /**
@@ -46,12 +47,14 @@ import com.example.lishan.ui.theme.LishanTheme
  * Knapperne til at rette/slette det viste kort melder bare tilbage via callbacks;
  * sletning skal først bekræftes i en dialog. Decket selv omdøbes/slettes fra listen over decks.
  *
+ * @param labels deckets labels pr. position (plads 0 = side 1); tomme strenge = intet label.
  * @param initialIndex det kort, skærmen starter på (fx når man kommer tilbage efter at have rettet et kort).
  */
 @Composable
 fun DeckScreen(
     deckName: String,
     cards: List<FlashcardWithSides>,
+    labels: List<String>,
     onBack: () -> Unit,
     onEditCard: (card: FlashcardWithSides, index: Int) -> Unit,
     onDeleteCard: (card: FlashcardWithSides) -> Unit,
@@ -109,7 +112,11 @@ fun DeckScreen(
             val card = cards[position]
             // `key` giver hvert kort sin egen FlashcardView, så et nyt kort altid starter på første side.
             key(card.card.id) {
-                FlashcardView(sides = card.visibleSides)
+                FlashcardView(
+                    sides = card.visibleCardSides.map { side ->
+                        SideContent(side.text, label = labels.getOrNull(side.position - 1)?.takeIf { it.isNotBlank() })
+                    },
+                )
             }
             Text("${position + 1} / ${cards.size}")
             Row {
@@ -156,6 +163,7 @@ fun DeckScreenPreview() {
                     ),
                 ),
             ),
+            labels = listOf("Dansk", "Engelsk"),
             onBack = {},
             onEditCard = { _, _ -> },
             onDeleteCard = {},

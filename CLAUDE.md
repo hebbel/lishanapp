@@ -1,6 +1,6 @@
 # Lishan
 
-En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på et deck viser dets kort ét ad gangen (tryk = næste side, swipe venstre = næste kort; begge starter forfra efter sidste). Data ligger i en Room-database, der ved første start får decket "Dyr" (hund/dog/perro, kat/cat). Et kort har 1–8 sider; kun sider med indhold vises. "+" på startskærmen opretter et deck; "+" i et deck opretter et kort. Decks omdøbes/slettes via ⋮-menuen i højre side af listen; inde i et deck kan det viste kort rettes/slettes, og ←-pilen ved deck-navnet går tilbage til listen. Sletning bekræftes i en dialog (`ui/ConfirmDeleteDialog.kt`).
+En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på et deck viser dets kort ét ad gangen (tryk = næste side, swipe venstre = næste kort; begge starter forfra efter sidste). Data ligger i en Room-database, der ved første start får decket "Dyr" (hund/dog/perro, kat/cat). Et kort har 1–8 sider; kun sider med indhold vises. Hvert deck kan have labels på sidepositionerne (fx Dansk/Engelsk/Spansk); de vises på kortet og som feltnavne i kortformularen og redigeres sammen med deckets navn. "+" på startskærmen opretter et deck; "+" i et deck opretter et kort. Decks redigeres (navn + labels)/slettes via ⋮-menuen i højre side af listen; inde i et deck kan det viste kort rettes/slettes, og ←-pilen ved deck-navnet går tilbage til listen. Sletning bekræftes i en dialog (`ui/ConfirmDeleteDialog.kt`).
 
 ## Arbejdsform
 
@@ -21,7 +21,8 @@ En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på 
 - Databaseændringer: tæl `version` op i `LishanDatabase`, skriv en `Migration` i `data/Migrations.kt`, tilføj den i `addMigrations(...)`, og skriv en test i `androidTest/.../MigrationTest.kt`. Room gemmer skemaet for hver version i `app/schemas/` (skal i git). Der er ingen destruktiv fallback: mangler en migration, går appen ned i stedet for at slette data. Startdata lægges kun ind ved en helt ny installation.
 - Instrumenterede tests (DAO + migrations) kører på emulatoren: `./gradlew connectedDebugAndroidTest`. Unit tests: `./gradlew testDebugUnitTest`. `gradle.properties` har `leaveApksInstalledAfterRun=true`, så en testkørsel ikke afinstallerer appen og sletter dens data.
 - Kode i `app/src/main/java/com/example/lishan/`:
-  - `model/` — `Deck`, `Flashcard`, `CardSide` (Room-tabeller) og `FlashcardWithSides` (kort + sider)
+  - `model/` — `Deck`, `Flashcard`, `CardSide`, `DeckSideLabel` (Room-tabeller) og `FlashcardWithSides` (kort + sider)
+  - Sider og labels har en fast position (1–8). En kortside beholder sin position, også når sider før den er tomme, så den passer til deckets label. I UI'et sendes de rundt som "positionelle" lister (plads 0 = side 1, tomme strenge for huller) — se `toPositional()` og `sidesByPosition()`.
   - `data/` — `DeckDao`, `LishanDatabase` (inkl. startdata), `Migrations.kt`
   - `ui/LishanApp.kt` — rod-UI: `Screen`-typen, vælger skærm, "+"-knap, tilbage-knap, gemmer i databasen
   - `ui/decklist/`, `ui/deck/`, `ui/deckform/`, `ui/cardform/` (bruges både til at oprette og rette), `ui/flashcard/` — skærme og komponenter; tema i `ui/theme/`

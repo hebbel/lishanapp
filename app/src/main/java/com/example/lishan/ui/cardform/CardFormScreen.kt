@@ -14,22 +14,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.snapshots.SnapshotStateList
-import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.lishan.model.CardSide
+import com.example.lishan.ui.StringListSaver
 import com.example.lishan.ui.theme.LishanTheme
 
 /**
  * Formular til et korts sider. Bruges både til at oprette et nyt kort og til at rette et
- * eksisterende; [initialSides] er den tekst, felterne starter med. Der vises altid mindst
- * to felter, og flere kan tilføjes op til [CardSide.MAX_SIDES].
- * Kalder [onSave] med teksten fra alle felterne.
+ * eksisterende; [initialSides] er den tekst, felterne starter med (plads 0 = side 1).
+ * Felterne navngives med deckets [labels]; positioner uden label hedder "Side n".
+ * Der vises mindst to felter og mindst ét pr. label, og flere kan tilføjes op til
+ * [CardSide.MAX_SIDES]. Kalder [onSave] med teksten fra alle felterne, i position.
  */
 @Composable
 fun CardFormScreen(
@@ -38,11 +37,13 @@ fun CardFormScreen(
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
     initialSides: List<String> = emptyList(),
+    labels: List<String> = emptyList(),
 ) {
     // En liste, som Compose holder øje med: tilføjes eller ændres et element, tegnes skærmen igen.
-    // `rememberSaveable` kan ikke selv gemme en sådan liste, så [SidesSaver] fortæller hvordan.
-    val sides = rememberSaveable(saver = SidesSaver) {
-        mutableStateListOf(*initialSides.toTypedArray()).apply { while (size < 2) add("") }
+    // `rememberSaveable` kan ikke selv gemme en sådan liste, så [StringListSaver] fortæller hvordan.
+    val sides = rememberSaveable(saver = StringListSaver) {
+        val fieldCount = maxOf(2, initialSides.size, labels.size).coerceAtMost(CardSide.MAX_SIDES)
+        mutableStateListOf(*initialSides.toTypedArray()).apply { while (size < fieldCount) add("") }
     }
 
     Column(
@@ -57,7 +58,7 @@ fun CardFormScreen(
             OutlinedTextField(
                 value = text,
                 onValueChange = { sides[index] = it },
-                label = { Text("Side ${index + 1}") },
+                label = { Text(labels.getOrNull(index)?.takeIf { it.isNotBlank() } ?: "Side ${index + 1}") },
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -84,12 +85,6 @@ fun CardFormScreen(
     }
 }
 
-/** Gemmer listen af sidetekster som en almindelig liste og genskaber den som en state-liste. */
-private val SidesSaver = listSaver<SnapshotStateList<String>, String>(
-    save = { it.toList() },
-    restore = { it.toMutableStateList() },
-)
-
 @Preview(showBackground = true)
 @Composable
 fun CardFormScreenPreview() {
@@ -97,6 +92,7 @@ fun CardFormScreenPreview() {
         CardFormScreen(
             title = "Ret kort",
             initialSides = listOf("hund", "dog", "perro"),
+            labels = listOf("Dansk", "Engelsk"),
             onSave = {},
             onCancel = {},
         )

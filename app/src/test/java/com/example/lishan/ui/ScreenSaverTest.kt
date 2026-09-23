@@ -21,9 +21,15 @@ class ScreenSaverTest {
             Screen.DeckList,
             Screen.DeckDetail(deck, cardIndex = 3),
             Screen.NewDeck,
-            Screen.EditDeck(deck),
-            Screen.NewCard(deck),
-            Screen.EditCard(deck, cardId = 42, sides = listOf("hund", "dog", "perro"), cardIndex = 1),
+            Screen.EditDeck(deck, labels = listOf("Dansk", "", "Spansk")),
+            Screen.NewCard(deck, labels = emptyList()),
+            Screen.EditCard(
+                deck,
+                cardId = 42,
+                sides = listOf("hund", "", "perro"),
+                cardIndex = 1,
+                labels = listOf("Dansk", "Engelsk"),
+            ),
         )
         for (screen in screens) {
             assertEquals(screen, roundTrip(screen))

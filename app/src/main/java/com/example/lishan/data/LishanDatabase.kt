@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.lishan.model.CardSide
 import com.example.lishan.model.Deck
+import com.example.lishan.model.DeckSideLabel
 import com.example.lishan.model.Flashcard
 
 /**
@@ -17,10 +18,11 @@ import com.example.lishan.model.Flashcard
  * i Migrations.kt. Room gemmer skemaet for hver version i `app/schemas/`.
  *
  * Version 2: kortenes indhold flyttet fra front/back til tabellen card_sides.
+ * Version 3: ny tabel deck_side_labels med labels på et decks sider.
  */
 @Database(
-    entities = [Deck::class, Flashcard::class, CardSide::class],
-    version = 2,
+    entities = [Deck::class, Flashcard::class, CardSide::class, DeckSideLabel::class],
+    version = 3,
     exportSchema = true,
 )
 abstract class LishanDatabase : RoomDatabase() {
@@ -40,7 +42,7 @@ abstract class LishanDatabase : RoomDatabase() {
                 )
                     .addCallback(SeedData)
                     // Mangler der en migration, går appen ned i stedet for at slette data i stilhed.
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { instance = it }
             }
@@ -61,6 +63,10 @@ private object SeedData : RoomDatabase.Callback() {
                 (1, 1, 'hund'), (1, 2, 'dog'), (1, 3, 'perro'),
                 (2, 1, 'kat'),  (2, 2, 'cat')
             """
+        )
+        db.execSQL(
+            "INSERT INTO deck_side_labels (deckId, position, label) VALUES " +
+                "(1, 1, 'Dansk'), (1, 2, 'Engelsk'), (1, 3, 'Spansk')"
         )
     }
 }

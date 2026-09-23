@@ -57,3 +57,21 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         db.execSQL("DROP TABLE `sides_tmp`")
     }
 }
+
+/**
+ * 2 → 3: Ny tabel til labels på et decks sider. Eksisterende decks får ingen labels;
+ * de kan tilføjes bagefter under "Rediger".
+ */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `deck_side_labels` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`deckId` INTEGER NOT NULL, `position` INTEGER NOT NULL, `label` TEXT NOT NULL, " +
+                "FOREIGN KEY(`deckId`) REFERENCES `decks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+        )
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `index_deck_side_labels_deckId_position` " +
+                "ON `deck_side_labels` (`deckId`, `position`)"
+        )
+    }
+}

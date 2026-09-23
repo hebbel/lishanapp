@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.example.lishan.data.DeckDao
 import com.example.lishan.model.Deck
+import com.example.lishan.model.toPositional
 import com.example.lishan.ui.cardform.CardFormScreen
 import com.example.lishan.ui.deck.DeckScreen
 import com.example.lishan.ui.deckform.DeckFormScreen
@@ -36,10 +37,17 @@ sealed interface Screen {
     /** [cardIndex]: hvilket kort decket åbner på. */
     data class DeckDetail(val deck: Deck, val cardIndex: Int = 0) : Screen
     data object NewDeck : Screen
-    data class EditDeck(val deck: Deck) : Screen
-    data class NewCard(val deck: Deck) : Screen
+    /** [labels]: deckets labels pr. position (plads 0 = side 1), til at udfylde formularen. */
+    data class EditDeck(val deck: Deck, val labels: List<String>) : Screen
+    data class NewCard(val deck: Deck, val labels: List<String>) : Screen
     /** [sides]: kortets nuværende tekst. [cardIndex] huskes, så man kommer tilbage til samme kort bagefter. */
-    data class EditCard(val deck: Deck, val cardId: Long, val sides: List<String>, val cardIndex: Int) : Screen
+    data class EditCard(
+        val deck: Deck,
+        val cardId: Long,
+        val sides: List<String>,
+        val cardIndex: Int,
+        val labels: List<String>,
+    ) : Screen
 }
 
 /**
@@ -53,25 +61,31 @@ internal val ScreenSaver = listSaver<Screen, Any>(
             Screen.DeckList -> listOf("DeckList")
             is Screen.DeckDetail -> listOf("DeckDetail", screen.deck.id, screen.deck.name, screen.cardIndex)
             Screen.NewDeck -> listOf("NewDeck")
-            is Screen.EditDeck -> listOf("EditDeck", screen.deck.id, screen.deck.name)
-            is Screen.NewCard -> listOf("NewCard", screen.deck.id, screen.deck.name)
+            is Screen.EditDeck -> listOf("EditDeck", screen.deck.id, screen.deck.name, ArrayList(screen.labels))
+            is Screen.NewCard -> listOf("NewCard", screen.deck.id, screen.deck.name, ArrayList(screen.labels))
             is Screen.EditCard -> listOf(
                 "EditCard", screen.deck.id, screen.deck.name, screen.cardId, screen.cardIndex, ArrayList(screen.sides),
+                ArrayList(screen.labels),
             )
         }
     },
     restore = { saved ->
         fun deck() = Deck(id = saved[1] as Long, name = saved[2] as String)
+
+        @Suppress("UNCHECKED_CAST")
+        fun strings(index: Int) = saved[index] as List<String>
         when (saved[0]) {
             "DeckDetail" -> Screen.DeckDetail(deck(), saved[3] as Int)
             "NewDeck" -> Screen.NewDeck
-            "EditDeck" -> Screen.EditDeck(deck())
-            "NewCard" -> Screen.NewCard(deck())
-            "EditCard" -> {
-                @Suppress("UNCHECKED_CAST")
-                val sides = saved[5] as List<String>
-                Screen.EditCard(deck(), cardId = saved[3] as Long, sides = sides, cardIndex = saved[4] as Int)
-            }
+            "EditDeck" -> Screen.EditDeck(deck(), labels = strings(3))
+            "NewCard" -> Screen.NewCard(deck(), labels = strings(3))
+            "EditCard" -> Screen.EditCard(
+                deck(),
+                cardId = saved[3] as Long,
+                sides = strings(5),
+                cardIndex = saved[4] as Int,
+                labels = strings(6),
+            )
             else -> Screen.DeckList
         }
     },
@@ -102,7 +116,11 @@ fun LishanApp(dao: DeckDao) {
         floatingActionButton = {
             when (val current = screen) {
                 Screen.DeckList -> AddButton { screen = Screen.NewDeck }
-                is Screen.DeckDetail -> AddButton { screen = Screen.NewCard(current.deck) }
+                is Screen.DeckDetail -> AddButton {
+                    scope.launch {
+                        screen = Screen.NewCard(current.deck, dao.getLabelsOnce(current.deck.id).toPositional())
+                    }
+                }
                 else -> {}
             }
         },
@@ -120,7 +138,12 @@ fun LishanApp(dao: DeckDao) {
                 DeckListScreen(
                     decks = decks,
                     onDeckClick = { screen = Screen.DeckDetail(it) },
-                    onRenameDeck = { screen = Screen.EditDeck(it) },
+                    onEditDeck = { deck ->
+                        scope.launch {
+                            // Hent deckets labels én gang, så formularen kan starte med dem udfyldt.
+                            screen = Screen.EditDeck(deck, dao.getLabelsOnce(deck.id).toPositional())
+                        }
+                    },
                     onDeleteDeck = { deck -> scope.launch { dao.deleteDeck(deck) } },
                     modifier = contentModifier,
                 )
@@ -129,13 +152,16 @@ fun LishanApp(dao: DeckDao) {
             is Screen.DeckDetail -> {
                 val deck = current.deck
                 val cards by remember(deck.id) { dao.getCards(deck.id) }.collectAsState(initial = emptyList())
+                val labels by remember(deck.id) { dao.getLabels(deck.id) }.collectAsState(initial = emptyList())
+                val positionalLabels = labels.toPositional()
                 DeckScreen(
                     deckName = deck.name,
                     cards = cards,
+                    labels = positionalLabels,
                     initialIndex = current.cardIndex,
                     onBack = { screen = Screen.DeckList },
                     onEditCard = { card, index ->
-                        screen = Screen.EditCard(deck, card.card.id, card.visibleSides, index)
+                        screen = Screen.EditCard(deck, card.card.id, card.sidesByPosition(), index, positionalLabels)
                     },
                     onDeleteCard = { card -> scope.launch { dao.deleteCard(card.card.id) } },
                     modifier = contentModifier,
@@ -145,9 +171,9 @@ fun LishanApp(dao: DeckDao) {
             Screen.NewDeck -> DeckFormScreen(
                 title = "Nyt deck",
                 saveLabel = "Opret",
-                onSave = { name ->
+                onSave = { name, labels ->
                     scope.launch {
-                        val id = dao.insertDeck(Deck(name = name))
+                        val id = dao.insertDeckWithLabels(name, labels)
                         // Gå direkte ind i det nye deck, så man kan begynde at tilføje kort.
                         screen = Screen.DeckDetail(Deck(id = id, name = name))
                     }
@@ -157,13 +183,14 @@ fun LishanApp(dao: DeckDao) {
             )
 
             is Screen.EditDeck -> DeckFormScreen(
-                title = "Omdøb deck",
+                title = "Rediger deck",
                 saveLabel = "Gem",
                 initialName = current.deck.name,
-                onSave = { name ->
+                initialLabels = current.labels,
+                onSave = { name, labels ->
                     val renamed = current.deck.copy(name = name)
                     scope.launch {
-                        dao.updateDeck(renamed)
+                        dao.updateDeckWithLabels(renamed, labels)
                         screen = Screen.DeckList
                     }
                 },
@@ -173,6 +200,7 @@ fun LishanApp(dao: DeckDao) {
 
             is Screen.NewCard -> CardFormScreen(
                 title = "Nyt kort i ${current.deck.name}",
+                labels = current.labels,
                 onSave = { sides ->
                     scope.launch {
                         dao.insertCardWithSides(current.deck.id, sides)
@@ -186,6 +214,7 @@ fun LishanApp(dao: DeckDao) {
             is Screen.EditCard -> CardFormScreen(
                 title = "Ret kort",
                 initialSides = current.sides,
+                labels = current.labels,
                 onSave = { sides ->
                     scope.launch {
                         dao.updateCardSides(current.cardId, sides)

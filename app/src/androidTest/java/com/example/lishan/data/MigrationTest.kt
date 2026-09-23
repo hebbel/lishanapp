@@ -49,4 +49,27 @@ class MigrationTest {
             assertEquals(2, c.getInt(0))
         }
     }
+
+    @Test
+    fun migrate2To3_addsEmptyLabelTableAndKeepsData() {
+        helper.createDatabase(testDb, 2).apply {
+            execSQL("INSERT INTO decks (id, name) VALUES (1, 'Dyr')")
+            execSQL("INSERT INTO flashcards (id, deckId) VALUES (1, 1)")
+            execSQL("INSERT INTO card_sides (cardId, position, text) VALUES (1, 1, 'hund'), (1, 2, 'dog')")
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 3, true, MIGRATION_2_3)
+
+        db.query("SELECT COUNT(*) FROM card_sides").use { c ->
+            c.moveToFirst()
+            assertEquals(2, c.getInt(0))
+        }
+        db.query("SELECT COUNT(*) FROM deck_side_labels").use { c ->
+            c.moveToFirst()
+            assertEquals(0, c.getInt(0))
+        }
+        // Den nye tabel virker: et label kan indsættes på et eksisterende deck.
+        db.execSQL("INSERT INTO deck_side_labels (deckId, position, label) VALUES (1, 1, 'Dansk')")
+    }
 }
