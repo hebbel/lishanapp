@@ -1,6 +1,6 @@
 # Lishan
 
-En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på et deck viser dets kort ét ad gangen (tryk = næste side, swipe venstre = næste kort; begge starter forfra efter sidste). Data ligger i en Room-database, der ved første start får decket "Dyr" (hund/dog/perro, kat/cat). Et kort har 1–8 sider; kun sider med indhold vises.
+En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på et deck viser dets kort ét ad gangen (tryk = næste side, swipe venstre = næste kort; begge starter forfra efter sidste). Data ligger i en Room-database, der ved første start får decket "Dyr" (hund/dog/perro, kat/cat). Et kort har 1–8 sider; kun sider med indhold vises. "+" på startskærmen opretter et deck; "+" i et deck opretter et kort.
 
 ## Arbejdsform
 
@@ -16,14 +16,14 @@ En flashcard-app til Android. Hovedskærmen er en liste over decks; et tryk på 
 - Pakke / applicationId: `com.example.lishan`
 - minSdk 24, targetSdk/compileSdk 37
 - Git-repo på branch `main` med remote `origin` → https://github.com/hebbel/lishanapp (GitHub-konto `hebbel`). Commit-beskeder skrives på dansk.
-- Room 2.8 (via KSP) til lagring. Ingen ViewModel eller Navigation Compose endnu — navigation er en simpel `selectedDeck`-variabel i `LishanApp`.
+- Room 2.8 (via KSP) til lagring. Ingen ViewModel eller Navigation Compose endnu — navigation er en `Screen`-sealed interface + én state-variabel i `LishanApp`, som også håndterer tilbage-knappen. Databasekald startes med `rememberCoroutineScope` i `LishanApp`; skærmene selv kender ikke databasen.
 - Databaseændringer: tæl `version` op i `LishanDatabase`, skriv en `Migration` i `data/Migrations.kt`, tilføj den i `addMigrations(...)`, og skriv en test i `androidTest/.../MigrationTest.kt`. Room gemmer skemaet for hver version i `app/schemas/` (skal i git). Der er ingen destruktiv fallback: mangler en migration, går appen ned i stedet for at slette data. Startdata lægges kun ind ved en helt ny installation.
-- Migrationstests kører på emulatoren: `./gradlew connectedDebugAndroidTest`. Unit tests: `./gradlew testDebugUnitTest`.
+- Instrumenterede tests (DAO + migrations) kører på emulatoren: `./gradlew connectedDebugAndroidTest`. Unit tests: `./gradlew testDebugUnitTest`. `gradle.properties` har `leaveApksInstalledAfterRun=true`, så en testkørsel ikke afinstallerer appen og sletter dens data.
 - Kode i `app/src/main/java/com/example/lishan/`:
   - `model/` — `Deck`, `Flashcard`, `CardSide` (Room-tabeller) og `FlashcardWithSides` (kort + sider)
   - `data/` — `DeckDao`, `LishanDatabase` (inkl. startdata), `Migrations.kt`
-  - `ui/LishanApp.kt` — rod-UI, vælger skærm
-  - `ui/decklist/`, `ui/deck/`, `ui/flashcard/` — skærme og komponenter; tema i `ui/theme/`
+  - `ui/LishanApp.kt` — rod-UI: `Screen`-typen, vælger skærm, "+"-knap, tilbage-knap, gemmer i databasen
+  - `ui/decklist/`, `ui/deck/`, `ui/newdeck/`, `ui/newcard/`, `ui/flashcard/` — skærme og komponenter; tema i `ui/theme/`
 
 Avast's HTTPS-scanning skal være slået fra — ellers kan Gradle ikke hente nye afhængigheder (Java stoler ikke på Avasts certifikat).
 

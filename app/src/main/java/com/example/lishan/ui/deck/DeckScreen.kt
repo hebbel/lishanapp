@@ -61,7 +61,7 @@ fun DeckScreen(
         Text(deckName, style = MaterialTheme.typography.headlineSmall)
 
         if (cards.isEmpty()) {
-            Text("Dette deck har ingen kort endnu.")
+            Text("Dette deck har ingen kort endnu. Tryk på + for at tilføje et.")
             return@Column
         }
 
