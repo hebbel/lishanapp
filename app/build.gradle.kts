@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.androidx.room)
 }
@@ -48,6 +49,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
+    // JSON til kommunikation med Lishan-serveren. Kræver serialization-plugin'et øverst.
+    implementation(libs.kotlinx.serialization.json)
     ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
@@ -59,7 +62,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     constraints {
-        // room-testing kræver mindst 1.8.1, men Room trækker selv 1.7.3 ind i appen.
+        // room-testing kræver mindst 1.8.1, men Room trækker selv 1.7.3 ind i appen; JSON-biblioteket bruger 1.9.0.
         // Testene kører med appens versioner, så appens version skal løftes.
         implementation(libs.kotlinx.serialization.core) {
             because("room-testing (MigrationTestHelper) kræver kotlinx-serialization 1.8.1")
