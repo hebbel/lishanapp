@@ -9,6 +9,7 @@ import dk.lishan.app.model.CardSide
 import dk.lishan.app.model.Deck
 import dk.lishan.app.model.DeckSideLabel
 import dk.lishan.app.model.Flashcard
+import dk.lishan.app.model.Folder
 
 /**
  * Appens database. Den gemmes som filen "lishan.db" på enheden og overlever,
@@ -20,10 +21,11 @@ import dk.lishan.app.model.Flashcard
  * Version 2: kortenes indhold flyttet fra front/back til tabellen card_sides.
  * Version 3: ny tabel deck_side_labels med labels på et decks sider.
  * Version 4: kolonnerne notes og comment på flashcards.
+ * Version 5: ny tabel folders og kolonnen folderId på decks.
  */
 @Database(
-    entities = [Deck::class, Flashcard::class, CardSide::class, DeckSideLabel::class],
-    version = 4,
+    entities = [Folder::class, Deck::class, Flashcard::class, CardSide::class, DeckSideLabel::class],
+    version = 5,
     exportSchema = true,
 )
 abstract class LishanDatabase : RoomDatabase() {
@@ -43,7 +45,7 @@ abstract class LishanDatabase : RoomDatabase() {
                 )
                     .addCallback(SeedData)
                     // Mangler der en migration, går appen ned i stedet for at slette data i stilhed.
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                     .also { instance = it }
             }

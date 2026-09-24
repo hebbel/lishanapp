@@ -99,7 +99,7 @@ fun DeckScreen(
             IconButton(onClick = onBack, modifier = Modifier.align(Alignment.CenterStart)) {
                 Icon(
                     painter = painterResource(R.drawable.ic_arrow_back),
-                    contentDescription = "Tilbage til decks",
+                    contentDescription = "Tilbage",
                 )
             }
             Text(

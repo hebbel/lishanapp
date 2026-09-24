@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import dk.lishan.app.model.Deck
+import dk.lishan.app.model.Folder
 import dk.lishan.app.model.toPositional
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -93,6 +94,47 @@ class DeckDaoTest {
         val updated = dao.getCards(deckId).first().single().card
         assertEquals("ny note", updated.notes)
         assertEquals("", updated.comment)
+    }
+
+    @Test
+    fun decksIn_separatesFrontPageFromFolders_andMoveDeckMovesBetweenThem() = runBlocking {
+        val folderId = dao.insertFolder(Folder(name = "Arabisk"))
+        val rootDeck = dao.insertDeckWithLabels("Dyr", emptyList())
+        dao.insertDeckWithLabels("12.05 Familie", emptyList(), folderId)
+
+        assertEquals(listOf("Dyr"), dao.getDecksIn(null).first().map { it.name })
+        assertEquals(listOf("12.05 Familie"), dao.getDecksIn(folderId).first().map { it.name })
+
+        dao.moveDeck(rootDeck, folderId)
+        assertEquals(emptyList<String>(), dao.getDecksIn(null).first().map { it.name })
+        assertEquals(listOf("12.05 Familie", "Dyr"), dao.getDecksIn(folderId).first().map { it.name })
+
+        dao.moveDeck(rootDeck, null)
+        assertEquals(listOf("Dyr"), dao.getDecksIn(null).first().map { it.name })
+    }
+
+    @Test
+    fun deleteFolder_alsoDeletesItsDecksAndCards_butNotOtherDecks() = runBlocking {
+        val folder = Folder(id = dao.insertFolder(Folder(name = "Arabisk")), name = "Arabisk")
+        val inFolder = dao.insertDeckWithLabels("12.05 Familie", listOf("Dansk"), folder.id)
+        dao.insertCardWithSides(inFolder, listOf("hund", "dog"))
+        val onFrontPage = dao.insertDeckWithLabels("Dyr", emptyList())
+        dao.insertCardWithSides(onFrontPage, listOf("kat", "cat"))
+
+        dao.deleteFolder(folder)
+
+        assertEquals(emptyList<String>(), dao.getFolders().first().map { it.name })
+        assertEquals(listOf("Dyr"), dao.getDecks().first().map { it.name })
+        assertEquals(1, count("flashcards"))
+        assertEquals(2, count("card_sides"))
+        assertEquals(0, count("deck_side_labels"))
+    }
+
+    @Test
+    fun updateFolder_renames() = runBlocking {
+        val id = dao.insertFolder(Folder(name = "Arabsk"))
+        dao.updateFolder(Folder(id = id, name = "Arabisk"))
+        assertEquals(listOf("Arabisk"), dao.getFolders().first().map { it.name })
     }
 
     @Test

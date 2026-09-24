@@ -1,10 +1,13 @@
 package dk.lishan.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -21,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import dk.lishan.app.data.DeckDao
 import dk.lishan.app.model.Deck
+import dk.lishan.app.model.Folder
 import dk.lishan.app.model.toPositional
 import dk.lishan.app.ui.cardform.CardFormScreen
 import dk.lishan.app.ui.deck.DeckScreen
@@ -33,10 +37,14 @@ import kotlinx.coroutines.launch
  * så `when (screen)` kan tjekke, at alle skærme er håndteret.
  */
 sealed interface Screen {
+    /** Forsiden: mapper og decks, der ikke ligger i en mappe. */
     data object DeckList : Screen
+    /** Indholdet af en mappe. */
+    data class FolderDetail(val folderId: Long) : Screen
     /** [cardIndex]: hvilket kort decket åbner på. */
     data class DeckDetail(val deck: Deck, val cardIndex: Int = 0) : Screen
-    data object NewDeck : Screen
+    /** [folderId]: mappen, det nye deck skal ligge i; `null` = forsiden. */
+    data class NewDeck(val folderId: Long?) : Screen
     /** [labels]: deckets labels pr. position (plads 0 = side 1), til at udfylde formularen. */
     data class EditDeck(val deck: Deck, val labels: List<String>) : Screen
     data class NewCard(val deck: Deck, val labels: List<String>) : Screen
@@ -52,43 +60,52 @@ sealed interface Screen {
     ) : Screen
 }
 
+/** Listen, et deck i [folderId] ligger i: mappen, eller forsiden når [folderId] er `null`. */
+private fun listScreen(folderId: Long?): Screen =
+    if (folderId == null) Screen.DeckList else Screen.FolderDetail(folderId)
+
 /**
  * Fortæller `rememberSaveable`, hvordan en [Screen] gemmes, når telefonen drejes:
- * som en liste af tal og tekst (det kan Android gemme), med skærmens navn først.
- * [restore] bygger skærmen op igen fra listen.
+ * som en liste af tal og tekst (det kan Android gemme), med skærmens navn først og derefter
+ * dens felter i fast rækkefølge. [restore] læser felterne tilbage i samme rækkefølge.
  */
-internal val ScreenSaver = listSaver<Screen, Any>(
+internal val ScreenSaver = listSaver<Screen, Any?>(
     save = { screen ->
+        fun deck(d: Deck) = listOf(d.id, d.name, d.folderId)
         when (screen) {
             Screen.DeckList -> listOf("DeckList")
-            is Screen.DeckDetail -> listOf("DeckDetail", screen.deck.id, screen.deck.name, screen.cardIndex)
-            Screen.NewDeck -> listOf("NewDeck")
-            is Screen.EditDeck -> listOf("EditDeck", screen.deck.id, screen.deck.name, ArrayList(screen.labels))
-            is Screen.NewCard -> listOf("NewCard", screen.deck.id, screen.deck.name, ArrayList(screen.labels))
-            is Screen.EditCard -> listOf(
-                "EditCard", screen.deck.id, screen.deck.name, screen.cardId, screen.cardIndex, ArrayList(screen.sides),
-                ArrayList(screen.labels), screen.notes, screen.comment,
+            is Screen.FolderDetail -> listOf("FolderDetail", screen.folderId)
+            is Screen.DeckDetail -> listOf("DeckDetail") + deck(screen.deck) + screen.cardIndex
+            is Screen.NewDeck -> listOf("NewDeck", screen.folderId)
+            is Screen.EditDeck -> listOf("EditDeck") + deck(screen.deck) + listOf(ArrayList(screen.labels))
+            is Screen.NewCard -> listOf("NewCard") + deck(screen.deck) + listOf(ArrayList(screen.labels))
+            is Screen.EditCard -> listOf("EditCard") + deck(screen.deck) + listOf(
+                screen.cardId, ArrayList(screen.sides), screen.cardIndex, ArrayList(screen.labels),
+                screen.notes, screen.comment,
             )
         }
     },
     restore = { saved ->
-        fun deck() = Deck(id = saved[1] as Long, name = saved[2] as String)
-
+        // Læser felterne ét ad gangen, i den rækkefølge `save` skrev dem.
+        val fields = saved.iterator()
+        val kind = fields.next()
+        fun long() = fields.next() as Long
+        fun longOrNull() = fields.next() as Long?
+        fun int() = fields.next() as Int
+        fun string() = fields.next() as String
         @Suppress("UNCHECKED_CAST")
-        fun strings(index: Int) = saved[index] as List<String>
-        when (saved[0]) {
-            "DeckDetail" -> Screen.DeckDetail(deck(), saved[3] as Int)
-            "NewDeck" -> Screen.NewDeck
-            "EditDeck" -> Screen.EditDeck(deck(), labels = strings(3))
-            "NewCard" -> Screen.NewCard(deck(), labels = strings(3))
+        fun strings() = fields.next() as List<String>
+        fun deck() = Deck(id = long(), name = string(), folderId = longOrNull())
+
+        when (kind) {
+            "FolderDetail" -> Screen.FolderDetail(long())
+            "DeckDetail" -> Screen.DeckDetail(deck(), cardIndex = int())
+            "NewDeck" -> Screen.NewDeck(longOrNull())
+            "EditDeck" -> Screen.EditDeck(deck(), labels = strings())
+            "NewCard" -> Screen.NewCard(deck(), labels = strings())
             "EditCard" -> Screen.EditCard(
-                deck(),
-                cardId = saved[3] as Long,
-                sides = strings(5),
-                cardIndex = saved[4] as Int,
-                labels = strings(6),
-                notes = saved[7] as String,
-                comment = saved[8] as String,
+                deck(), cardId = long(), sides = strings(), cardIndex = int(), labels = strings(),
+                notes = string(), comment = string(),
             )
             else -> Screen.DeckList
         }
@@ -103,12 +120,16 @@ internal val ScreenSaver = listSaver<Screen, Any>(
 fun LishanApp(dao: DeckDao) {
     // `rememberSaveable` (i stedet for `remember`) overlever, at skærmen genskabes, fx når telefonen drejes.
     var screen by rememberSaveable(stateSaver = ScreenSaver) { mutableStateOf<Screen>(Screen.DeckList) }
+    var showNewFolderDialog by rememberSaveable { mutableStateOf(false) }
     // Databasekald er `suspend`-funktioner og skal startes fra en coroutine.
     val scope = rememberCoroutineScope()
 
     // Androids tilbage-knap/-gestus går ét skridt tilbage i stedet for at lukke appen.
     BackHandler(enabled = screen != Screen.DeckList) {
         screen = when (val current = screen) {
+            is Screen.DeckDetail -> listScreen(current.deck.folderId)
+            is Screen.NewDeck -> listScreen(current.folderId)
+            is Screen.EditDeck -> listScreen(current.deck.folderId)
             is Screen.NewCard -> Screen.DeckDetail(current.deck)
             is Screen.EditCard -> Screen.DeckDetail(current.deck, current.cardIndex)
             else -> Screen.DeckList
@@ -119,7 +140,12 @@ fun LishanApp(dao: DeckDao) {
         modifier = Modifier.fillMaxSize(),
         floatingActionButton = {
             when (val current = screen) {
-                Screen.DeckList -> AddButton { screen = Screen.NewDeck }
+                Screen.DeckList -> AddMenuButton(
+                    onNewDeck = { screen = Screen.NewDeck(folderId = null) },
+                    onNewFolder = { showNewFolderDialog = true },
+                )
+                // Mapper kan ikke ligge i mapper, så inde i en mappe opretter "+" bare et deck.
+                is Screen.FolderDetail -> AddButton { screen = Screen.NewDeck(current.folderId) }
                 is Screen.DeckDetail -> AddButton {
                     scope.launch {
                         screen = Screen.NewCard(current.deck, dao.getLabelsOnce(current.deck.id).toPositional())
@@ -135,12 +161,22 @@ fun LishanApp(dao: DeckDao) {
             .imePadding() // Giv plads til tastaturet, når det er åbent.
 
         when (val current = screen) {
-            Screen.DeckList -> {
+            Screen.DeckList, is Screen.FolderDetail -> {
+                val folderId = (current as? Screen.FolderDetail)?.folderId
                 // `remember` sørger for, at vi ikke starter en ny forespørgsel, hver gang skærmen tegnes.
                 // `collectAsState` gør strømmen fra databasen til state, som Compose reagerer på.
-                val decks by remember { dao.getDecks() }.collectAsState(initial = emptyList())
+                val allFolders by remember { dao.getFolders() }.collectAsState(initial = emptyList())
+                val decks by remember(folderId) { dao.getDecksIn(folderId) }.collectAsState(initial = emptyList())
                 DeckListScreen(
+                    // På forsiden vises mapperne; inde i en mappe kun dens decks og mappens navn som titel.
+                    folders = if (folderId == null) allFolders else emptyList(),
                     decks = decks,
+                    moveTargets = allFolders,
+                    title = folderId?.let { id -> allFolders.find { it.id == id }?.name.orEmpty() },
+                    onBack = { screen = Screen.DeckList },
+                    onFolderClick = { screen = Screen.FolderDetail(it.id) },
+                    onRenameFolder = { folder, name -> scope.launch { dao.updateFolder(folder.copy(name = name)) } },
+                    onDeleteFolder = { folder -> scope.launch { dao.deleteFolder(folder) } },
                     onDeckClick = { screen = Screen.DeckDetail(it) },
                     onEditDeck = { deck ->
                         scope.launch {
@@ -148,6 +184,7 @@ fun LishanApp(dao: DeckDao) {
                             screen = Screen.EditDeck(deck, dao.getLabelsOnce(deck.id).toPositional())
                         }
                     },
+                    onMoveDeck = { deck, targetFolderId -> scope.launch { dao.moveDeck(deck.id, targetFolderId) } },
                     onDeleteDeck = { deck -> scope.launch { dao.deleteDeck(deck) } },
                     modifier = contentModifier,
                 )
@@ -163,7 +200,7 @@ fun LishanApp(dao: DeckDao) {
                     cards = cards,
                     labels = positionalLabels,
                     initialIndex = current.cardIndex,
-                    onBack = { screen = Screen.DeckList },
+                    onBack = { screen = listScreen(deck.folderId) },
                     onEditCard = { card, index ->
                         screen = Screen.EditCard(
                             deck, card.card.id, card.sidesByPosition(), index, positionalLabels,
@@ -175,17 +212,17 @@ fun LishanApp(dao: DeckDao) {
                 )
             }
 
-            Screen.NewDeck -> DeckFormScreen(
+            is Screen.NewDeck -> DeckFormScreen(
                 title = "Nyt deck",
                 saveLabel = "Opret",
                 onSave = { name, labels ->
                     scope.launch {
-                        val id = dao.insertDeckWithLabels(name, labels)
+                        val id = dao.insertDeckWithLabels(name, labels, current.folderId)
                         // Gå direkte ind i det nye deck, så man kan begynde at tilføje kort.
-                        screen = Screen.DeckDetail(Deck(id = id, name = name))
+                        screen = Screen.DeckDetail(Deck(id = id, name = name, folderId = current.folderId))
                     }
                 },
-                onCancel = { screen = Screen.DeckList },
+                onCancel = { screen = listScreen(current.folderId) },
                 modifier = contentModifier,
             )
 
@@ -198,10 +235,10 @@ fun LishanApp(dao: DeckDao) {
                     val renamed = current.deck.copy(name = name)
                     scope.launch {
                         dao.updateDeckWithLabels(renamed, labels)
-                        screen = Screen.DeckList
+                        screen = listScreen(renamed.folderId)
                     }
                 },
-                onCancel = { screen = Screen.DeckList },
+                onCancel = { screen = listScreen(current.deck.folderId) },
                 modifier = contentModifier,
             )
 
@@ -235,11 +272,49 @@ fun LishanApp(dao: DeckDao) {
             )
         }
     }
+
+    if (showNewFolderDialog) {
+        NameDialog(
+            title = "Ny mappe",
+            confirmLabel = "Opret",
+            onConfirm = { name ->
+                showNewFolderDialog = false
+                scope.launch { dao.insertFolder(Folder(name = name)) }
+            },
+            onDismiss = { showNewFolderDialog = false },
+        )
+    }
 }
 
 @Composable
 private fun AddButton(onClick: () -> Unit) {
     FloatingActionButton(onClick = onClick) {
         Text("+", style = MaterialTheme.typography.headlineMedium)
+    }
+}
+
+/** "+" på forsiden: åbner en lille menu med valget mellem et nyt deck og en ny mappe. */
+@Composable
+private fun AddMenuButton(onNewDeck: () -> Unit, onNewFolder: () -> Unit) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    // Box: menuen placeres ud fra det, den ligger i, så den dukker op ved knappen.
+    Box {
+        AddButton { expanded = true }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Nyt deck") },
+                onClick = {
+                    expanded = false
+                    onNewDeck()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Ny mappe") },
+                onClick = {
+                    expanded = false
+                    onNewFolder()
+                },
+            )
+        }
     }
 }

@@ -86,3 +86,25 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         db.execSQL("ALTER TABLE `flashcards` ADD COLUMN `comment` TEXT NOT NULL DEFAULT ''")
     }
 }
+
+/**
+ * 4 → 5: Mapper. Ny tabel folders, og decks får kolonnen folderId, der peger på en mappe.
+ * Alle eksisterende decks får folderId = NULL, dvs. de ligger direkte på forsiden.
+ *
+ * decks bygges ikke om (som i 1 → 2): at slette den gamle tabel kunne slette kort, sider og
+ * labels med via CASCADE. SQLite tillader i stedet at tilføje en kolonne med fremmednøgle,
+ * når den ikke har en standardværdi (den bliver så NULL).
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `folders` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`name` TEXT NOT NULL, `courseId` INTEGER)"
+        )
+        db.execSQL(
+            "ALTER TABLE `decks` ADD COLUMN `folderId` INTEGER " +
+                "REFERENCES `folders`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_decks_folderId` ON `decks` (`folderId`)")
+    }
+}

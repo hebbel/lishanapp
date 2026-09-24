@@ -4,6 +4,7 @@ import androidx.room.testing.MigrationTestHelper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -92,6 +93,39 @@ class MigrationTest {
         db.query("SELECT COUNT(*) FROM card_sides WHERE cardId = 1").use { c ->
             c.moveToFirst()
             assertEquals(2, c.getInt(0))
+        }
+    }
+
+    @Test
+    fun migrate4To5_putsExistingDecksOnFrontPageAndKeepsCards() {
+        helper.createDatabase(testDb, 4).apply {
+            execSQL("INSERT INTO decks (id, name) VALUES (1, 'Dyr')")
+            execSQL("INSERT INTO flashcards (id, deckId) VALUES (1, 1)")
+            execSQL("INSERT INTO card_sides (cardId, position, text) VALUES (1, 1, 'hund')")
+            execSQL("INSERT INTO deck_side_labels (deckId, position, label) VALUES (1, 1, 'Dansk')")
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 5, true, MIGRATION_4_5)
+
+        db.query("SELECT folderId FROM decks WHERE id = 1").use { c ->
+            c.moveToFirst()
+            assertTrue(c.isNull(0))
+        }
+        for (table in listOf("flashcards", "card_sides", "deck_side_labels")) {
+            db.query("SELECT COUNT(*) FROM $table").use { c ->
+                c.moveToFirst()
+                assertEquals(table, 1, c.getInt(0))
+            }
+        }
+        // Fremmednøglen virker: sletter man en mappe, forsvinder dens decks.
+        db.execSQL("PRAGMA foreign_keys = ON")
+        db.execSQL("INSERT INTO folders (id, name) VALUES (1, 'Arabisk')")
+        db.execSQL("UPDATE decks SET folderId = 1 WHERE id = 1")
+        db.execSQL("DELETE FROM folders WHERE id = 1")
+        db.query("SELECT COUNT(*) FROM decks").use { c ->
+            c.moveToFirst()
+            assertEquals(0, c.getInt(0))
         }
     }
 }

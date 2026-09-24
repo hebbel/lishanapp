@@ -11,6 +11,7 @@ import dk.lishan.app.model.Deck
 import dk.lishan.app.model.DeckSideLabel
 import dk.lishan.app.model.Flashcard
 import dk.lishan.app.model.FlashcardWithSides
+import dk.lishan.app.model.Folder
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -27,6 +28,35 @@ import kotlinx.coroutines.flow.Flow
 abstract class DeckDao {
     @Query("SELECT * FROM decks ORDER BY name")
     abstract fun getDecks(): Flow<List<Deck>>
+
+    /**
+     * Decks i en bestemt mappe, eller direkte på forsiden, når [folderId] er `null`.
+     * `IS` i stedet for `=`, fordi `folderId = NULL` aldrig er sandt i SQL; `IS` sammenligner også NULL.
+     */
+    @Query("SELECT * FROM decks WHERE folderId IS :folderId ORDER BY name")
+    abstract fun getDecksIn(folderId: Long?): Flow<List<Deck>>
+
+    /** Flytter et deck til en mappe, eller til forsiden, når [folderId] er `null`. */
+    @Query("UPDATE decks SET folderId = :folderId WHERE id = :deckId")
+    abstract suspend fun moveDeck(deckId: Long, folderId: Long?)
+
+    // --- Mapper ---
+
+    @Query("SELECT * FROM folders ORDER BY name")
+    abstract fun getFolders(): Flow<List<Folder>>
+
+    @Query("SELECT * FROM folders WHERE id = :folderId")
+    abstract fun getFolder(folderId: Long): Flow<Folder?>
+
+    @Insert
+    abstract suspend fun insertFolder(folder: Folder): Long
+
+    @Update
+    abstract suspend fun updateFolder(folder: Folder)
+
+    /** Sletter en mappe. Dens decks og deres kort slettes automatisk med (ForeignKey CASCADE). */
+    @Delete
+    abstract suspend fun deleteFolder(folder: Folder)
 
     // @Transaction: Room henter kort og sider i to forespørgsler; transaktionen sikrer, at de passer sammen.
     @Transaction
@@ -115,10 +145,10 @@ abstract class DeckDao {
     @Insert
     abstract suspend fun insertLabels(labels: List<DeckSideLabel>)
 
-    /** Opretter et deck med labels (plads 0 = side 1) og returnerer dets id. */
+    /** Opretter et deck med labels (plads 0 = side 1) i en mappe (eller på forsiden) og returnerer dets id. */
     @Transaction
-    open suspend fun insertDeckWithLabels(name: String, labels: List<String>): Long {
-        val deckId = insertDeck(Deck(name = name))
+    open suspend fun insertDeckWithLabels(name: String, labels: List<String>, folderId: Long? = null): Long {
+        val deckId = insertDeck(Deck(name = name, folderId = folderId))
         insertLabels(toLabels(deckId, labels))
         return deckId
     }

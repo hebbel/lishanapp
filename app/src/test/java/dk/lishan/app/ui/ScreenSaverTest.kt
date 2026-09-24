@@ -9,6 +9,7 @@ import org.junit.Test
 class ScreenSaverTest {
 
     private val deck = Deck(id = 7, name = "Dyr")
+    private val deckInFolder = Deck(id = 8, name = "12.05 Familie", folderId = 5)
 
     private fun roundTrip(screen: Screen): Screen? {
         val saved = with(ScreenSaver) { SaverScope { true }.save(screen) }!!
@@ -19,9 +20,12 @@ class ScreenSaverTest {
     fun everyScreen_survivesSaveAndRestore() {
         val screens = listOf(
             Screen.DeckList,
+            Screen.FolderDetail(folderId = 5),
             Screen.DeckDetail(deck, cardIndex = 3),
-            Screen.NewDeck,
-            Screen.EditDeck(deck, labels = listOf("Dansk", "", "Spansk")),
+            Screen.DeckDetail(deckInFolder, cardIndex = 0),
+            Screen.NewDeck(folderId = null),
+            Screen.NewDeck(folderId = 5),
+            Screen.EditDeck(deckInFolder, labels = listOf("Dansk", "", "Spansk")),
             Screen.NewCard(deck, labels = emptyList()),
             Screen.EditCard(
                 deck,
