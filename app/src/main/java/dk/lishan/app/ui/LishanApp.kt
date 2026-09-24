@@ -22,10 +22,8 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import dk.lishan.app.data.DeckDao
+import dk.lishan.app.data.DeckRepository
 import dk.lishan.app.model.Deck
-import dk.lishan.app.model.Folder
-import dk.lishan.app.model.toPositional
 import dk.lishan.app.ui.cardform.CardFormScreen
 import dk.lishan.app.ui.deck.DeckScreen
 import dk.lishan.app.ui.deckform.DeckFormScreen
@@ -114,10 +112,10 @@ internal val ScreenSaver = listSaver<Screen, Any?>(
 
 /**
  * Roden af appens UI. Holder styr på, hvilken skærm der vises, og forbinder skærmene
- * med databasen.
+ * med data via [repository].
  */
 @Composable
-fun LishanApp(dao: DeckDao) {
+fun LishanApp(repository: DeckRepository) {
     // `rememberSaveable` (i stedet for `remember`) overlever, at skærmen genskabes, fx når telefonen drejes.
     var screen by rememberSaveable(stateSaver = ScreenSaver) { mutableStateOf<Screen>(Screen.DeckList) }
     var showNewFolderDialog by rememberSaveable { mutableStateOf(false) }
@@ -148,7 +146,7 @@ fun LishanApp(dao: DeckDao) {
                 is Screen.FolderDetail -> AddButton { screen = Screen.NewDeck(current.folderId) }
                 is Screen.DeckDetail -> AddButton {
                     scope.launch {
-                        screen = Screen.NewCard(current.deck, dao.getLabelsOnce(current.deck.id).toPositional())
+                        screen = Screen.NewCard(current.deck, repository.labelsNow(current.deck.id))
                     }
                 }
                 else -> {}
@@ -165,8 +163,8 @@ fun LishanApp(dao: DeckDao) {
                 val folderId = (current as? Screen.FolderDetail)?.folderId
                 // `remember` sørger for, at vi ikke starter en ny forespørgsel, hver gang skærmen tegnes.
                 // `collectAsState` gør strømmen fra databasen til state, som Compose reagerer på.
-                val allFolders by remember { dao.getFolders() }.collectAsState(initial = emptyList())
-                val decks by remember(folderId) { dao.getDecksIn(folderId) }.collectAsState(initial = emptyList())
+                val allFolders by repository.folders.collectAsState(initial = emptyList())
+                val decks by remember(folderId) { repository.decksIn(folderId) }.collectAsState(initial = emptyList())
                 DeckListScreen(
                     // På forsiden vises mapperne; inde i en mappe kun dens decks og mappens navn som titel.
                     folders = if (folderId == null) allFolders else emptyList(),
@@ -175,26 +173,25 @@ fun LishanApp(dao: DeckDao) {
                     title = folderId?.let { id -> allFolders.find { it.id == id }?.name.orEmpty() },
                     onBack = { screen = Screen.DeckList },
                     onFolderClick = { screen = Screen.FolderDetail(it.id) },
-                    onRenameFolder = { folder, name -> scope.launch { dao.updateFolder(folder.copy(name = name)) } },
-                    onDeleteFolder = { folder -> scope.launch { dao.deleteFolder(folder) } },
+                    onRenameFolder = { folder, name -> scope.launch { repository.renameFolder(folder, name) } },
+                    onDeleteFolder = { folder -> scope.launch { repository.deleteFolder(folder) } },
                     onDeckClick = { screen = Screen.DeckDetail(it) },
                     onEditDeck = { deck ->
                         scope.launch {
                             // Hent deckets labels én gang, så formularen kan starte med dem udfyldt.
-                            screen = Screen.EditDeck(deck, dao.getLabelsOnce(deck.id).toPositional())
+                            screen = Screen.EditDeck(deck, repository.labelsNow(deck.id))
                         }
                     },
-                    onMoveDeck = { deck, targetFolderId -> scope.launch { dao.moveDeck(deck.id, targetFolderId) } },
-                    onDeleteDeck = { deck -> scope.launch { dao.deleteDeck(deck) } },
+                    onMoveDeck = { deck, targetFolderId -> scope.launch { repository.moveDeck(deck, targetFolderId) } },
+                    onDeleteDeck = { deck -> scope.launch { repository.deleteDeck(deck) } },
                     modifier = contentModifier,
                 )
             }
 
             is Screen.DeckDetail -> {
                 val deck = current.deck
-                val cards by remember(deck.id) { dao.getCards(deck.id) }.collectAsState(initial = emptyList())
-                val labels by remember(deck.id) { dao.getLabels(deck.id) }.collectAsState(initial = emptyList())
-                val positionalLabels = labels.toPositional()
+                val cards by remember(deck.id) { repository.cards(deck.id) }.collectAsState(initial = emptyList())
+                val positionalLabels by remember(deck.id) { repository.labels(deck.id) }.collectAsState(initial = emptyList())
                 DeckScreen(
                     deckName = deck.name,
                     cards = cards,
@@ -207,7 +204,7 @@ fun LishanApp(dao: DeckDao) {
                             notes = card.card.notes, comment = card.card.comment,
                         )
                     },
-                    onDeleteCard = { card -> scope.launch { dao.deleteCard(card.card.id) } },
+                    onDeleteCard = { card -> scope.launch { repository.deleteCard(card.card.id) } },
                     modifier = contentModifier,
                 )
             }
@@ -217,9 +214,9 @@ fun LishanApp(dao: DeckDao) {
                 saveLabel = "Opret",
                 onSave = { name, labels ->
                     scope.launch {
-                        val id = dao.insertDeckWithLabels(name, labels, current.folderId)
+                        val deck = repository.createDeck(name, labels, current.folderId)
                         // Gå direkte ind i det nye deck, så man kan begynde at tilføje kort.
-                        screen = Screen.DeckDetail(Deck(id = id, name = name, folderId = current.folderId))
+                        screen = Screen.DeckDetail(deck)
                     }
                 },
                 onCancel = { screen = listScreen(current.folderId) },
@@ -234,7 +231,7 @@ fun LishanApp(dao: DeckDao) {
                 onSave = { name, labels ->
                     val renamed = current.deck.copy(name = name)
                     scope.launch {
-                        dao.updateDeckWithLabels(renamed, labels)
+                        repository.updateDeck(renamed, labels)
                         screen = listScreen(renamed.folderId)
                     }
                 },
@@ -247,7 +244,7 @@ fun LishanApp(dao: DeckDao) {
                 labels = current.labels,
                 onSave = { sides, notes, comment ->
                     scope.launch {
-                        dao.insertCardWithSides(current.deck.id, sides, notes, comment)
+                        repository.createCard(current.deck.id, sides, notes, comment)
                         screen = Screen.DeckDetail(current.deck)
                     }
                 },
@@ -263,7 +260,7 @@ fun LishanApp(dao: DeckDao) {
                 initialComment = current.comment,
                 onSave = { sides, notes, comment ->
                     scope.launch {
-                        dao.updateCard(current.cardId, sides, notes, comment)
+                        repository.updateCard(current.cardId, sides, notes, comment)
                         screen = Screen.DeckDetail(current.deck, current.cardIndex)
                     }
                 },
@@ -279,7 +276,7 @@ fun LishanApp(dao: DeckDao) {
             confirmLabel = "Opret",
             onConfirm = { name ->
                 showNewFolderDialog = false
-                scope.launch { dao.insertFolder(Folder(name = name)) }
+                scope.launch { repository.createFolder(name) }
             },
             onDismiss = { showNewFolderDialog = false },
         )

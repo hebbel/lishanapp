@@ -16,7 +16,7 @@ En flashcard-app til Android. Forsiden viser mapper (øverst) og de decks, der i
 - Pakke / applicationId: `dk.lishan.app`
 - minSdk 24, targetSdk/compileSdk 37
 - Git-repo på branch `main` med remote `origin` → https://github.com/hebbel/lishanapp (GitHub-konto `hebbel`). Commit-beskeder skrives på dansk.
-- Room 2.8 (via KSP) til lagring. Ingen ViewModel eller Navigation Compose endnu — navigation er en `Screen`-sealed interface + én state-variabel i `LishanApp`, som også håndterer tilbage-knappen. Databasekald startes med `rememberCoroutineScope` i `LishanApp`; skærmene selv kender ikke databasen.
+- Room 2.8 (via KSP) til lagring. Ingen ViewModel eller Navigation Compose endnu — navigation er en `Screen`-sealed interface + én state-variabel i `LishanApp`, som også håndterer tilbage-knappen. Al data går gennem `DeckRepository` (appens eneste indgang til data; i dag kun Room, senere også serveren). `LishanApp` taler med repository'et og starter kald med `rememberCoroutineScope`; skærmene selv kender hverken repository eller database. Kald ikke `DeckDao` direkte fra UI.
 - UI-tilstand, der skal overleve at telefonen drejes (skærm, valgt kort/side, åbne dialoger, tekst i formularer), gemmes med `rememberSaveable` — ikke `remember`. `Screen` gemmes via `ScreenSaver` i `LishanApp.kt` (tal og tekst i en liste); en ny `Screen`-variant skal også tilføjes dér og i `ScreenSaverTest`. Parcelize blev prøvet, men dets compiler-plugin kobler sig ikke på med AGP's indbyggede Kotlin i dette projekt.
 - JSON: kotlinx.serialization 1.9.0 (plugin `org.jetbrains.kotlin.plugin.serialization`) virker med AGP's indbyggede Kotlin — afprøvet i `JsonTest`. Brug `Json { ignoreUnknownKeys = true }` til serverens svar. Serialization-versionen skal passe til Kotlin-versionen (1.9 ↔ Kotlin 2.2).
 - Databaseændringer: tæl `version` op i `LishanDatabase`, skriv en `Migration` i `data/Migrations.kt`, tilføj den i `addMigrations(...)`, og skriv en test i `androidTest/.../MigrationTest.kt`. Room gemmer skemaet for hver version i `app/schemas/` (skal i git). Der er ingen destruktiv fallback: mangler en migration, går appen ned i stedet for at slette data. Startdata lægges kun ind ved en helt ny installation.
@@ -24,7 +24,7 @@ En flashcard-app til Android. Forsiden viser mapper (øverst) og de decks, der i
 - Kode i `app/src/main/java/dk/lishan/app/`:
   - `model/` — `Folder`, `Deck`, `Flashcard`, `CardSide`, `DeckSideLabel` (Room-tabeller) og `FlashcardWithSides` (kort + sider)
   - Sider og labels har en fast position (1–8). En kortside beholder sin position, også når sider før den er tomme, så den passer til deckets label. I UI'et sendes de rundt som "positionelle" lister (plads 0 = side 1, tomme strenge for huller) — se `toPositional()` og `sidesByPosition()`.
-  - `data/` — `DeckDao`, `LishanDatabase` (inkl. startdata), `Migrations.kt`
+  - `data/` — `DeckRepository`, `DeckDao`, `LishanDatabase` (inkl. startdata), `Migrations.kt`
   - `ui/LishanApp.kt` — rod-UI: `Screen`-typen, vælger skærm, "+"-knap, tilbage-knap, gemmer i databasen
   - `ui/decklist/`, `ui/deck/`, `ui/deckform/`, `ui/cardform/` (bruges både til at oprette og rette), `ui/flashcard/` — skærme og komponenter; tema i `ui/theme/`
 - Ikoner lægges ind som vektorfiler i `res/drawable/` (fx `ic_more_vert.xml`) i stedet for at bruge biblioteket material-icons.
