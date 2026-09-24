@@ -24,16 +24,21 @@ En flashcard-app til Android. Forsiden viser mapper (øverst) og de decks, der i
 - Kode i `app/src/main/java/dk/lishan/app/`:
   - `model/` — `Folder`, `Deck`, `Flashcard`, `CardSide`, `DeckSideLabel` (Room-tabeller) og `FlashcardWithSides` (kort + sider)
   - Sider og labels har en fast position (1–8). En kortside beholder sin position, også når sider før den er tomme, så den passer til deckets label. I UI'et sendes de rundt som "positionelle" lister (plads 0 = side 1, tomme strenge for huller) — se `toPositional()` og `sidesByPosition()`.
-  - `data/` — `DeckRepository`, `DeckDao`, `LishanDatabase` (inkl. startdata), `Migrations.kt`; `data/remote/` (API), `data/sync/` (flettereglerne)
+  - `data/` — `AppServices`, `DeckRepository`, `DeckDao`, `LishanDatabase` (inkl. startdata), `Migrations.kt`; `data/remote/` (API), `data/auth/` (login og tokens), `data/sync/` (flettereglerne)
   - `ui/LishanViewModel.kt` — aktuel skærm, navigation og handlinger; `ui/Screen.kt` — skærmtyperne og `ScreenSaver`
   - `ui/LishanApp.kt` — rod-UI: viser den skærm, ViewModel'en siger, "+"-knappen og dialogen "Ny mappe"
   - `ui/decklist/`, `ui/deck/`, `ui/deckform/`, `ui/cardform/` (bruges både til at oprette og rette), `ui/courses/` ("Forbind kursus"), `ui/flashcard/` — skærme og komponenter; tema i `ui/theme/`
-- Kursussynkronisering (appens side er bygget; serverens API findes ikke endnu, se `docs/server-api-prompt.md`):
+- Lishan-serverens API er beskrevet i `docs/app-api.md` (i produktion på `https://lishan.fak.dk`). `docs/server-api-prompt.md` er prompten, det blev bygget ud fra.
+- Login og server: `data/AppServices.kt` opretter repository'et én gang. Er `lishan.clientId` sat i `gradle.properties`, bruges den rigtige server (`HttpLishanApi` med OkHttp, adresse og klient fra `BuildConfig`); er den tom, bruges `FakeLishanApi` uden login.
+  - Login: OAuth 2 Authorization Code + PKCE i browseren via AppAuth (`data/auth/LoginService.kt`), redirect `dk.lishan.app:/oauth2redirect`. Skærmen "Forbind kursus" viser "Log ind"/"Log ud".
+  - Tokens (access 1 time, refresh 90 dage og skiftes ved hver fornyelse) gemmes krypteret med en AES-nøgle i Android Keystore (`KeystoreTokenStore`, filen `lishan_auth.xml`, holdt ude af backup). `HttpLishanApi` fornyer selv tokens ved udløb eller `401` – kun én fornyelse ad gangen (Mutex) – og kaster `NotLoggedInException`, når serveren afviser fornyelsen; serverfejl bliver `ApiException`.
+  - `HttpLishanApiTest` tester mod MockWebServer med svar fra `docs/app-api.md`.
+- Kursussynkronisering:
   - "Forbind kursus" henter kun kursets lektionsliste; lektionerne bliver decks i kursets mappe, som ikke er hentet (gråt, ↓). Et tryk henter kortene (✓). Når kursusmappen åbnes, hentes listen igen: nye lektioner vises gråt, ændrede hentede lektioner får ↻ (hent igen manuelt), forsvundne lektioner markeres (hentede) eller fjernes (ikke hentede).
   - Et decks tilstand (`Deck.syncState`) beregnes ud fra `lessonId`, `serverHash`, `downloadedHash`, `removedOnServer` og `locallyModified`; "ude af sync" (↻) = serverens fingeraftryk (hash) ≠ det, lektionen blev hentet med; "ændret af dig" (✎) = brugeren har rettet sider/kommentar i eller slettet et kursuskort (noter og egne kort tæller ikke). ↻ vises før ✎. Hentning igen ("Gendan fra kurset" i ⋮, eller ↻) genopretter slettede kursuskort og overskriver rettelser – det bekræftes først, når decket er ændret af brugeren – og nulstiller ✎.
   - Markeringen sættes i `DeckRepository.updateCard`/`deleteCard` (sammenligner med `SyncRules.sameSides`) – derfor skal UI'et altid rette/slette kort via repository'et.
   - Flettereglerne ligger i `data/sync/SyncRules.kt` (rene funktioner): serverens tekst vinder, undtagen når den er tom; noter røres aldrig; egne kort (`wordId = null`) røres ikke. Kort genkendes på deck + `wordId`.
-  - `data/remote/`: `LishanApi` (interface), `ApiModels.kt` (serverens JSON-format), `FakeLishanApi` (demokursus; bruges i `MainActivity` indtil det rigtige API findes, og i `SyncTest`). Kursusmapper har en testknap "Test: simulér en ændring på serveren", så længe det falske API bruges.
+  - `data/remote/`: `LishanApi` (interface), `ApiModels.kt` (serverens JSON-format), `HttpLishanApi` (den rigtige server), `FakeLishanApi` (demokursus; bruges uden `lishan.clientId` og i `SyncTest`). Kursusmapper har en testknap "Test: simulér en ændring på serveren", når det falske API bruges.
   - Et redigeret decks navn gemmes med `renameDeck` (ikke `@Update` på hele decket), så synkroniseringsfelterne ikke nulstilles.
 - Ikoner lægges ind som vektorfiler i `res/drawable/` (fx `ic_more_vert.xml`) i stedet for at bruge biblioteket material-icons.
 

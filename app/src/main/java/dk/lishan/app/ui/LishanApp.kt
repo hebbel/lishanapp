@@ -1,6 +1,8 @@
 package dk.lishan.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -99,11 +101,18 @@ fun LishanApp(viewModel: LishanViewModel) {
 
             Screen.Courses -> {
                 val allFolders by viewModel.folders.collectAsState()
+                // Åbner Lishans login i browseren; svaret kommer tilbage hertil, når brugeren er logget ind.
+                val loginLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.StartActivityForResult()
+                ) { result -> viewModel.completeLogin(result.data) }
                 CoursesScreen(
                     state = viewModel.coursesState,
                     connectedCourseIds = allFolders.mapNotNull { it.courseId }.toSet(),
                     connectingCourseId = viewModel.connectingCourseId,
                     message = viewModel.coursesMessage,
+                    loginState = viewModel.loginState,
+                    onLogin = { loginLauncher.launch(viewModel.loginIntent()) },
+                    onLogout = { viewModel.logout() },
                     onConnect = { viewModel.connectCourse(it) },
                     onRetry = { viewModel.loadCourses() },
                     onBack = viewModel::back,

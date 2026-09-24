@@ -1,5 +1,6 @@
 package dk.lishan.app.ui
 
+import android.content.Intent
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -15,10 +16,12 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dk.lishan.app.data.DeckRepository
 import dk.lishan.app.data.remote.CourseDto
+import dk.lishan.app.data.remote.NotLoggedInException
 import dk.lishan.app.model.Deck
 import dk.lishan.app.model.FlashcardWithSides
 import dk.lishan.app.model.Folder
 import dk.lishan.app.ui.courses.CoursesState
+import dk.lishan.app.ui.courses.LoginState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -77,6 +80,16 @@ class LishanViewModel(
 
     /** Om der kan simuleres ændringer på serveren (kun med det falske API). */
     val canSimulateServerChanges: Boolean = repository.canSimulateServerChanges
+
+    /** Om brugeren er logget ind hos Lishan-serveren. */
+    var loginState: LoginState by mutableStateOf(
+        when {
+            !repository.requiresLogin -> LoginState.NotRequired
+            repository.isLoggedIn() -> LoginState.LoggedIn(name = null)
+            else -> LoginState.LoggedOut
+        }
+    )
+        private set
 
     init {
         // Er appen blevet genskabt på skærmen "Forbind kursus", skal listen hentes igen.
@@ -179,10 +192,44 @@ class LishanViewModel(
         loadCourses()
     }
 
+    /** Henter kurserne – og brugerens navn – hvis brugeren er logget ind. */
     fun loadCourses() = viewModelScope.launch {
+        if (loginState == LoginState.LoggedOut || loginState is LoginState.Failed) return@launch
         coursesState = CoursesState.Loading
+        if (loginState == LoginState.LoggedIn(name = null)) {
+            tryServer { repository.currentUser() }?.let { loginState = LoginState.LoggedIn(it.name) }
+        }
         coursesState = tryServer { CoursesState.Loaded(repository.availableCourses()) }
             ?: CoursesState.Failed("Kunne ikke hente kurserne. Tjek forbindelsen, og prøv igen.")
+    }
+
+    // --- Login ---
+
+    /** Beskeden, der åbner Lishans login-side i browseren. */
+    fun loginIntent(): Intent {
+        loginState = LoginState.LoggingIn
+        return repository.loginIntent()
+    }
+
+    /** Kaldes med svaret, når browseren sender brugeren tilbage til appen. */
+    fun completeLogin(result: Intent?) = viewModelScope.launch {
+        loginState = try {
+            repository.completeLogin(result)
+            LoginState.LoggedIn(name = null)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w("LishanViewModel", "Login mislykkedes", e)
+            LoginState.Failed("Login blev ikke gennemført. Prøv igen.")
+        }
+        loadCourses()
+    }
+
+    /** Logger ud. Hentede lektioner bliver liggende og kan stadig bruges. */
+    fun logout() = viewModelScope.launch {
+        tryServer { repository.logout() }
+        loginState = LoginState.LoggedOut
+        coursesState = CoursesState.Loading
     }
 
     /** Forbinder til et kursus (eller åbner det, hvis det allerede er forbundet) og går ind i mappen. */
@@ -205,7 +252,7 @@ class LishanViewModel(
         courseStatus = if (tryServer { repository.refreshCourse(folder) } != null) {
             CourseStatus.Idle
         } else {
-            CourseStatus.Failed("Kunne ikke kontakte serveren. Viser de gemte data.")
+            CourseStatus.Failed(failureMessage("Kunne ikke kontakte serveren. Viser de gemte data."))
         }
     }
 
@@ -214,7 +261,9 @@ class LishanViewModel(
         if (deck.id in downloadingDeckIds) return@launch
         downloadingDeckIds = downloadingDeckIds + deck.id
         if (tryServer { repository.downloadLesson(deck) } == null) {
-            courseStatus = CourseStatus.Failed("Kunne ikke hente \"${deck.name}\". Prøv igen, når der er forbindelse.")
+            courseStatus = CourseStatus.Failed(
+                failureMessage("Kunne ikke hente \"${deck.name}\". Prøv igen, når der er forbindelse.")
+            )
         }
         downloadingDeckIds = downloadingDeckIds - deck.id
     }
@@ -225,8 +274,17 @@ class LishanViewModel(
         refreshCourse(folder)
     }
 
+    /** Beskeden til brugeren, når et kald til serveren fejlede: log ind igen, eller [otherwise]. */
+    private fun failureMessage(otherwise: String): String =
+        if (loginState == LoginState.LoggedOut) {
+            "Du er ikke logget ind. Log ind under + → Forbind kursus. Hentede lektioner kan stadig bruges."
+        } else {
+            otherwise
+        }
+
     /**
-     * Kører et kald til serveren og giver `null` tilbage, hvis det fejler (fx uden net).
+     * Kører et kald til serveren og giver `null` tilbage, hvis det fejler (fx uden net). Er brugeren
+     * ikke (længere) logget ind, huskes det i [loginState].
      * En [CancellationException] sendes videre: den betyder, at opgaven skal stoppes, og må ikke
      * behandles som en almindelig fejl.
      */
@@ -235,6 +293,9 @@ class LishanViewModel(
             block()
         } catch (e: CancellationException) {
             throw e
+        } catch (e: NotLoggedInException) {
+            loginState = LoginState.LoggedOut
+            null
         } catch (e: Exception) {
             Log.w("LishanViewModel", "Kald til serveren fejlede", e)
             null

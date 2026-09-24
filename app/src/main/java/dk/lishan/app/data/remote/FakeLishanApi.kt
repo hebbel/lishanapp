@@ -73,6 +73,10 @@ class FakeLishanApi(private val responseDelayMillis: Long = 600) : LishanApi {
         LessonCardsDto(lesson.toDto(), lesson.cards.sortedBy { it.order })
     }
 
+    override suspend fun getCurrentUser(): UserDto = respond { UserDto(id = 1, username = "demo", name = "Demobruger") }
+
+    override suspend fun logout() = respond { }
+
     /**
      * Til test: ændrer noget "på serveren", så appen har noget at synkronisere.
      * Første gang tilføjes en ny lektion; hver gang ændres den engelske side af et kort i lektion 1.01.

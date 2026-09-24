@@ -4,9 +4,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /*
- * Serverens dataformat, som det er foreslået i docs/server-api-prompt.md. Klasserne svarer
+ * Serverens dataformat, som det er beskrevet i docs/app-api.md. Klasserne svarer
  * præcis til JSON'en fra serveren; `@SerialName` kobler serverens feltnavne til Kotlins.
- * Når det rigtige API er beskrevet (docs/app-api.md), rettes eventuelle forskelle her.
  */
 
 /** Et kursus, brugeren har adgang til. */
@@ -49,3 +48,20 @@ data class CardDto(
     val category: String? = null,
     val comment: String? = null,
 )
+
+/** Den indloggede bruger (`GET /api/v1/me`). [name] er navnet, hvis det findes, ellers brugernavnet. */
+@Serializable
+data class UserDto(val id: Long, val username: String, val name: String)
+
+/** Svaret fra `POST /oauth/token`, når tokens fornyes. */
+@Serializable
+data class TokenResponseDto(
+    @SerialName("access_token") val accessToken: String,
+    @SerialName("refresh_token") val refreshToken: String,
+    @SerialName("expires_in") val expiresIn: Long,
+)
+
+/** Serverens fejlsvar, fx `{"error": "not_found"}`. */
+@Serializable
+data class ErrorDto(val error: String = "")
+

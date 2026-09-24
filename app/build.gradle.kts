@@ -20,6 +20,13 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Lishan-serveren. Adresse og OAuth-klient bliver til konstanter i BuildConfig.
+        buildConfigField("String", "LISHAN_BASE_URL", "\"https://lishan.fak.dk\"")
+        val clientId = providers.gradleProperty("lishan.clientId").getOrElse("")
+        buildConfigField("String", "LISHAN_CLIENT_ID", "\"$clientId\"")
+        // AppAuth: browseren sender brugeren tilbage til appen på dk.lishan.app:/oauth2redirect.
+        manifestPlaceholders["appAuthRedirectScheme"] = "dk.lishan.app"
     }
 
     buildTypes {
@@ -35,6 +42,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -52,6 +60,11 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     // JSON til kommunikation med Lishan-serveren. Kræver serialization-plugin'et øverst.
     implementation(libs.kotlinx.serialization.json)
+    // Login med OAuth (browser + PKCE) og HTTP-kald til Lishan-serveren.
+    implementation(libs.appauth)
+    implementation(libs.okhttp)
+    // En falsk HTTP-server til at teste kaldene til Lishan-serveren.
+    testImplementation(libs.okhttp.mockwebserver)
     ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

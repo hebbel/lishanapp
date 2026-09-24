@@ -1,13 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Regler for Androids automatiske backup (Android 11 og ældre).
+   Login-tokens tages ikke med: de er krypteret med en nøgle i Keystore, som ikke følger med til
+   en anden telefon, og brugeren skal logge ind igen dér.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <exclude domain="sharedpref" path="lishan_auth.xml" />
 </full-backup-content>

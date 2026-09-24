@@ -1,9 +1,12 @@
 package dk.lishan.app.data
 
+import android.content.Intent
 import androidx.room.withTransaction
+import dk.lishan.app.data.auth.LishanAuth
 import dk.lishan.app.data.remote.CourseDto
 import dk.lishan.app.data.remote.FakeLishanApi
 import dk.lishan.app.data.remote.LishanApi
+import dk.lishan.app.data.remote.UserDto
 import dk.lishan.app.data.sync.SyncRules
 import dk.lishan.app.model.CardSide
 import dk.lishan.app.model.Deck
@@ -20,8 +23,14 @@ import kotlinx.coroutines.flow.map
  * Skærmene læser altid fra den lokale database. Serveren ([api]) bruges kun til at fylde den:
  * repository'et henter fra serveren, fletter med det, der ligger lokalt (efter [SyncRules]), og
  * gemmer i databasen. Derfor virker alt offline, når en lektion først er hentet.
+ *
+ * [auth] er login hos serveren; `null` betyder, at [api] ikke kræver login (det falske API).
  */
-class DeckRepository(private val database: LishanDatabase, private val api: LishanApi) {
+class DeckRepository(
+    private val database: LishanDatabase,
+    private val api: LishanApi,
+    private val auth: LishanAuth? = null,
+) {
 
     private val dao = database.deckDao()
 
@@ -180,6 +189,27 @@ class DeckRepository(private val database: LishanDatabase, private val api: Lish
             dao.markDownloaded(deck.id, result.lesson.hash)
         }
     }
+
+    // --- Login ---
+
+    /** Om serveren kræver, at brugeren logger ind (ikke med det falske API). */
+    val requiresLogin: Boolean get() = auth != null
+
+    fun isLoggedIn(): Boolean = auth == null || auth.tokenStore.load() != null
+
+    /** Beskeden, der åbner Lishans login-side i browseren. */
+    fun loginIntent(): Intent = requireNotNull(auth) { "Login er ikke nødvendigt" }.loginService.createLoginIntent()
+
+    /** Afslutter login med svaret fra browseren og gemmer tokens. */
+    suspend fun completeLogin(result: Intent?) {
+        val auth = requireNotNull(auth) { "Login er ikke nødvendigt" }
+        auth.tokenStore.save(auth.loginService.completeLogin(result))
+    }
+
+    suspend fun currentUser(): UserDto = api.getCurrentUser()
+
+    /** Logger ud på serveren og glemmer login'et i appen. Hentede lektioner bliver liggende. */
+    suspend fun logout() = api.logout()
 
     /** Om der kan simuleres ændringer "på serveren" (kun med det falske API, til afprøvning). */
     val canSimulateServerChanges: Boolean get() = api is FakeLishanApi
