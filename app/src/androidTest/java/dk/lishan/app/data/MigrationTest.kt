@@ -128,4 +128,33 @@ class MigrationTest {
             assertEquals(0, c.getInt(0))
         }
     }
+
+    @Test
+    fun migrate5To6_keepsUserDataAsLocal() {
+        helper.createDatabase(testDb, 5).apply {
+            execSQL("INSERT INTO folders (id, name) VALUES (1, 'Mine')")
+            execSQL("INSERT INTO decks (id, name, folderId) VALUES (1, 'Dyr', 1), (2, 'Farver', NULL)")
+            execSQL("INSERT INTO flashcards (id, deckId, notes) VALUES (1, 1, 'min note')")
+            execSQL("INSERT INTO card_sides (cardId, position, text) VALUES (1, 1, 'hund')")
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 6, true, MIGRATION_5_6)
+
+        db.query("SELECT lessonId, downloadedHash, removedOnServer FROM decks ORDER BY id").use { c ->
+            while (c.moveToNext()) {
+                assertTrue(c.isNull(0))
+                assertTrue(c.isNull(1))
+                assertEquals(0, c.getInt(2))
+            }
+        }
+        db.query("SELECT wordId, category, notes FROM flashcards WHERE id = 1").use { c ->
+            c.moveToFirst()
+            assertTrue(c.isNull(0))
+            assertEquals("", c.getString(1))
+            assertEquals("min note", c.getString(2))
+        }
+        // Flere egne kort uden glose-id i samme deck er tilladt (NULL tæller ikke i unikke indekser).
+        db.execSQL("INSERT INTO flashcards (deckId) VALUES (1), (1)")
+    }
 }

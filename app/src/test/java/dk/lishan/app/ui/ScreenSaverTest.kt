@@ -21,6 +21,7 @@ class ScreenSaverTest {
         val screens = listOf(
             Screen.DeckList,
             Screen.FolderDetail(folderId = 5),
+            Screen.Courses,
             Screen.DeckDetail(deck, cardIndex = 3),
             Screen.DeckDetail(deckInFolder, cardIndex = 0),
             Screen.NewDeck(folderId = null),

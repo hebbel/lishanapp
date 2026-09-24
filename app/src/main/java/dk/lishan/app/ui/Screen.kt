@@ -12,6 +12,8 @@ sealed interface Screen {
     data object DeckList : Screen
     /** Indholdet af en mappe. */
     data class FolderDetail(val folderId: Long) : Screen
+    /** Listen over kurser på serveren, man kan forbinde til. */
+    data object Courses : Screen
     /** [cardIndex]: hvilket kort decket åbner på. */
     data class DeckDetail(val deck: Deck, val cardIndex: Int = 0) : Screen
     /** [folderId]: mappen, det nye deck skal ligge i; `null` = forsiden. */
@@ -46,6 +48,7 @@ internal val ScreenSaver = listSaver<Screen, Any?>(
         when (screen) {
             Screen.DeckList -> listOf("DeckList")
             is Screen.FolderDetail -> listOf("FolderDetail", screen.folderId)
+            Screen.Courses -> listOf("Courses")
             is Screen.DeckDetail -> listOf("DeckDetail") + deck(screen.deck) + screen.cardIndex
             is Screen.NewDeck -> listOf("NewDeck", screen.folderId)
             is Screen.EditDeck -> listOf("EditDeck") + deck(screen.deck) + listOf(ArrayList(screen.labels))
@@ -70,6 +73,7 @@ internal val ScreenSaver = listSaver<Screen, Any?>(
 
         when (kind) {
             "FolderDetail" -> Screen.FolderDetail(long())
+            "Courses" -> Screen.Courses
             "DeckDetail" -> Screen.DeckDetail(deck(), cardIndex = int())
             "NewDeck" -> Screen.NewDeck(longOrNull())
             "EditDeck" -> Screen.EditDeck(deck(), labels = strings())

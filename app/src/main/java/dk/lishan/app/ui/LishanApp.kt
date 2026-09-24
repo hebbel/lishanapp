@@ -21,6 +21,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import dk.lishan.app.ui.cardform.CardFormScreen
+import dk.lishan.app.ui.courses.CoursesScreen
 import dk.lishan.app.ui.deck.DeckScreen
 import dk.lishan.app.ui.deckform.DeckFormScreen
 import dk.lishan.app.ui.decklist.DeckListScreen
@@ -45,6 +46,7 @@ fun LishanApp(viewModel: LishanViewModel) {
                 Screen.DeckList -> AddMenuButton(
                     onNewDeck = { viewModel.startNewDeck(folderId = null) },
                     onNewFolder = { showNewFolderDialog = true },
+                    onConnectCourse = viewModel::openCourses,
                 )
                 // Mapper kan ikke ligge i mapper, så inde i en mappe opretter "+" bare et deck.
                 is Screen.FolderDetail -> AddButton { viewModel.startNewDeck(screen.folderId) }
@@ -65,12 +67,14 @@ fun LishanApp(viewModel: LishanViewModel) {
                 // `remember` sørger for, at vi ikke starter en ny forespørgsel, hver gang skærmen tegnes.
                 val allFolders by viewModel.folders.collectAsState()
                 val decks by remember(folderId) { viewModel.decksIn(folderId) }.collectAsState(initial = emptyList())
+                val folder = folderId?.let { id -> allFolders.find { it.id == id } }
+                val isCourse = folder?.courseId != null
                 DeckListScreen(
                     // På forsiden vises mapperne; inde i en mappe kun dens decks og mappens navn som titel.
                     folders = if (folderId == null) allFolders else emptyList(),
                     decks = decks,
                     moveTargets = allFolders,
-                    title = folderId?.let { id -> allFolders.find { it.id == id }?.name.orEmpty() },
+                    title = folderId?.let { folder?.name.orEmpty() },
                     onBack = viewModel::back,
                     onFolderClick = viewModel::openFolder,
                     onRenameFolder = { folder, name -> viewModel.renameFolder(folder, name) },
@@ -79,6 +83,30 @@ fun LishanApp(viewModel: LishanViewModel) {
                     onEditDeck = { viewModel.startEditDeck(it) },
                     onMoveDeck = { deck, targetFolderId -> viewModel.moveDeck(deck, targetFolderId) },
                     onDeleteDeck = { viewModel.deleteDeck(it) },
+                    onDownloadDeck = { viewModel.downloadLesson(it) },
+                    downloadingDeckIds = viewModel.downloadingDeckIds,
+                    status = if (!isCourse) null else when (val status = viewModel.courseStatus) {
+                        CourseStatus.Refreshing -> "Henter lektionslisten …"
+                        is CourseStatus.Failed -> status.message
+                        CourseStatus.Idle -> null
+                    },
+                    onSimulateServerChange = if (isCourse && viewModel.canSimulateServerChanges) {
+                        { viewModel.simulateServerChange(folder) }
+                    } else null,
+                    modifier = contentModifier,
+                )
+            }
+
+            Screen.Courses -> {
+                val allFolders by viewModel.folders.collectAsState()
+                CoursesScreen(
+                    state = viewModel.coursesState,
+                    connectedCourseIds = allFolders.mapNotNull { it.courseId }.toSet(),
+                    connectingCourseId = viewModel.connectingCourseId,
+                    message = viewModel.coursesMessage,
+                    onConnect = { viewModel.connectCourse(it) },
+                    onRetry = { viewModel.loadCourses() },
+                    onBack = viewModel::back,
                     modifier = contentModifier,
                 )
             }
@@ -158,9 +186,9 @@ private fun AddButton(onClick: () -> Unit) {
     }
 }
 
-/** "+" på forsiden: åbner en lille menu med valget mellem et nyt deck og en ny mappe. */
+/** "+" på forsiden: åbner en lille menu med valget mellem et nyt deck, en ny mappe og at forbinde et kursus. */
 @Composable
-private fun AddMenuButton(onNewDeck: () -> Unit, onNewFolder: () -> Unit) {
+private fun AddMenuButton(onNewDeck: () -> Unit, onNewFolder: () -> Unit, onConnectCourse: () -> Unit) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     // Box: menuen placeres ud fra det, den ligger i, så den dukker op ved knappen.
     Box {
@@ -178,6 +206,13 @@ private fun AddMenuButton(onNewDeck: () -> Unit, onNewFolder: () -> Unit) {
                 onClick = {
                     expanded = false
                     onNewFolder()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Forbind kursus") },
+                onClick = {
+                    expanded = false
+                    onConnectCourse()
                 },
             )
         }

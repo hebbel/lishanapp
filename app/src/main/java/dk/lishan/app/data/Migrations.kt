@@ -108,3 +108,24 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_decks_folderId` ON `decks` (`folderId`)")
     }
 }
+
+/**
+ * 5 → 6: Synkronisering. Decks får lektions-id, rækkefølge og fingeraftryk; kort får glose-id og
+ * kategori; unikke indekser sikrer, at et kursus kun bliver til én mappe, en lektion kun findes
+ * én gang i mappen, og en glose kun én gang i et deck. Alle eksisterende data er brugerens egne,
+ * så de nye kolonner er tomme (NULL) eller har standardværdien.
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `decks` ADD COLUMN `lessonId` TEXT")
+        db.execSQL("ALTER TABLE `decks` ADD COLUMN `position` INTEGER")
+        db.execSQL("ALTER TABLE `decks` ADD COLUMN `serverHash` TEXT")
+        db.execSQL("ALTER TABLE `decks` ADD COLUMN `downloadedHash` TEXT")
+        db.execSQL("ALTER TABLE `decks` ADD COLUMN `removedOnServer` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `flashcards` ADD COLUMN `wordId` INTEGER")
+        db.execSQL("ALTER TABLE `flashcards` ADD COLUMN `category` TEXT NOT NULL DEFAULT ''")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_folders_courseId` ON `folders` (`courseId`)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_decks_folderId_lessonId` ON `decks` (`folderId`, `lessonId`)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_flashcards_deckId_wordId` ON `flashcards` (`deckId`, `wordId`)")
+    }
+}

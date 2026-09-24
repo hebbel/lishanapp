@@ -1,5 +1,11 @@
 package dk.lishan.app.data
 
+import androidx.room.withTransaction
+import dk.lishan.app.data.remote.CourseDto
+import dk.lishan.app.data.remote.FakeLishanApi
+import dk.lishan.app.data.remote.LishanApi
+import dk.lishan.app.data.sync.SyncRules
+import dk.lishan.app.model.CardSide
 import dk.lishan.app.model.Deck
 import dk.lishan.app.model.FlashcardWithSides
 import dk.lishan.app.model.Folder
@@ -11,11 +17,13 @@ import kotlinx.coroutines.flow.map
  * Appens eneste indgang til data. Skærmene spørger repository'et og ved ikke, hvor dataene
  * kommer fra.
  *
- * I dag kommer alt fra den lokale database ([DeckDao]). Når kurser kan synkroniseres, kommer
- * serveren til her: repository'et henter fra serveren, fletter med det, der ligger lokalt, og
- * gemmer i databasen. Skærmene læser stadig kun fra databasen, så alt virker offline.
+ * Skærmene læser altid fra den lokale database. Serveren ([api]) bruges kun til at fylde den:
+ * repository'et henter fra serveren, fletter med det, der ligger lokalt (efter [SyncRules]), og
+ * gemmer i databasen. Derfor virker alt offline, når en lektion først er hentet.
  */
-class DeckRepository(private val dao: DeckDao) {
+class DeckRepository(private val database: LishanDatabase, private val api: LishanApi) {
+
+    private val dao = database.deckDao()
 
     // --- Mapper ---
 
@@ -67,4 +75,95 @@ class DeckRepository(private val dao: DeckDao) {
         dao.updateCard(cardId, sides, notes, comment)
 
     suspend fun deleteCard(cardId: Long) = dao.deleteCard(cardId)
+
+    // --- Synkronisering med serveren ---
+    // Funktionerne kaster en undtagelse, hvis serveren ikke kan nås. Så er intet ændret lokalt.
+
+    /** De kurser, brugeren kan forbinde til. */
+    suspend fun availableCourses(): List<CourseDto> = api.getCourses()
+
+    /**
+     * Forbinder til et kursus: opretter kursets mappe (eller finder den, hvis kurset allerede er
+     * forbundet) og henter listen over lektioner. Kortene hentes ikke; det vælger brugeren selv.
+     */
+    suspend fun connectCourse(course: CourseDto): Folder {
+        val folder = dao.getFolderByCourse(course.id)
+            ?: Folder(name = course.name, courseId = course.id).let { it.copy(id = dao.insertFolder(it)) }
+        refreshCourse(folder, course)
+        return folder
+    }
+
+    /**
+     * Henter kursets lektionsliste igen og opdaterer mappen:
+     * - nye lektioner bliver til decks, der ikke er hentet (vises gråt),
+     * - navn, rækkefølge og fingeraftryk opdateres; en hentet lektion med nyt fingeraftryk er "ude af sync",
+     * - lektioner, der er forsvundet fra serveren, fjernes, hvis de ikke er hentet, og markeres ellers,
+     * - deckenes labels sættes efter kursets sider.
+     */
+    suspend fun refreshCourse(folder: Folder, knownCourse: CourseDto? = null) {
+        val courseId = requireNotNull(folder.courseId) { "Mappen ${folder.name} er ikke et kursus" }
+        val course = knownCourse ?: api.getCourses().find { it.id == courseId }
+        val lessons = api.getLessons(courseId)
+        val labels = course?.let { SyncRules.labelsOf(it.sides) }
+
+        database.withTransaction {
+            if (course != null && course.name != folder.name) dao.updateFolder(folder.copy(name = course.name))
+
+            val existing = dao.getDecksInOnce(folder.id).filter { it.lessonId != null }.associateBy { it.lessonId }
+            lessons.forEachIndexed { position, lesson ->
+                val title = SyncRules.deckTitle(lesson)
+                val deckId = existing[lesson.id]
+                    ?.also { dao.updateLessonDeck(it.id, title, position, lesson.hash) }?.id
+                    ?: dao.insertDeck(
+                        Deck(name = title, folderId = folder.id, lessonId = lesson.id, position = position, serverHash = lesson.hash)
+                    )
+                if (labels != null) dao.setLabels(deckId, labels)
+            }
+
+            val onServer = lessons.map { it.id }.toSet()
+            val gone = existing.values.filter { it.lessonId !in onServer }
+            gone.filter { it.downloadedHash == null }.forEach { dao.deleteDeck(it) }
+            dao.markRemovedOnServer(gone.filter { it.downloadedHash != null }.map { it.id })
+        }
+    }
+
+    /**
+     * Henter en lektions kort og fletter dem ind i decket efter [SyncRules]: serverens tekst vinder,
+     * undtagen når den er tom; noterne røres aldrig; kort, brugeren selv har oprettet, røres ikke.
+     * Bruges både første gang og til at synkronisere en lektion, der er "ude af sync".
+     */
+    suspend fun downloadLesson(deck: Deck) {
+        val lessonId = requireNotNull(deck.lessonId) { "Decket ${deck.name} er ikke en lektion" }
+        val courseId = deck.folderId?.let { dao.getFolderOnce(it) }?.courseId
+            ?: error("Decket ${deck.name} ligger ikke i en kursusmappe")
+        val result = api.getLessonCards(courseId, lessonId)
+
+        database.withTransaction {
+            val existing = dao.getCardsOnce(deck.id).filter { it.card.wordId != null }.associateBy { it.card.wordId }
+            for (card in result.cards.sortedBy { it.order }) {
+                val sides = card.sides.take(CardSide.MAX_SIDES)
+                val local = existing[card.wordId]
+                if (local == null) {
+                    dao.insertSyncedCard(
+                        deck.id, card.wordId, sides.map { it.trim() }, card.category.orEmpty().trim(), card.comment.orEmpty().trim(),
+                    )
+                } else {
+                    dao.updateSyncedCard(
+                        local.card.id,
+                        SyncRules.mergeSides(local.sidesByPosition(), sides),
+                        SyncRules.mergeText(local.card.category, card.category),
+                        SyncRules.mergeText(local.card.comment, card.comment),
+                    )
+                }
+            }
+            dao.markDownloaded(deck.id, result.lesson.hash)
+        }
+    }
+
+    /** Om der kan simuleres ændringer "på serveren" (kun med det falske API, til afprøvning). */
+    val canSimulateServerChanges: Boolean get() = api is FakeLishanApi
+
+    fun simulateServerChange() {
+        (api as? FakeLishanApi)?.simulateServerChange()
+    }
 }

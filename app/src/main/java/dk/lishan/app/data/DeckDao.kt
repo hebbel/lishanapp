@@ -33,8 +33,16 @@ abstract class DeckDao {
      * Decks i en bestemt mappe, eller direkte på forsiden, når [folderId] er `null`.
      * `IS` i stedet for `=`, fordi `folderId = NULL` aldrig er sandt i SQL; `IS` sammenligner også NULL.
      */
-    @Query("SELECT * FROM decks WHERE folderId IS :folderId ORDER BY name")
+    // Lektioner fra et kursus i kursets rækkefølge (position), derefter egne decks efter navn.
+    @Query("SELECT * FROM decks WHERE folderId IS :folderId ORDER BY position IS NULL, position, name")
     abstract fun getDecksIn(folderId: Long?): Flow<List<Deck>>
+
+    @Query("SELECT * FROM decks WHERE folderId IS :folderId")
+    abstract suspend fun getDecksInOnce(folderId: Long?): List<Deck>
+
+    /** Ændrer kun navnet, så decket beholder sine øvrige felter (fx om synkronisering). */
+    @Query("UPDATE decks SET name = :name WHERE id = :deckId")
+    abstract suspend fun renameDeck(deckId: Long, name: String)
 
     /** Flytter et deck til en mappe, eller til forsiden, når [folderId] er `null`. */
     @Query("UPDATE decks SET folderId = :folderId WHERE id = :deckId")
@@ -156,9 +164,15 @@ abstract class DeckDao {
     /** Gemmer et decks navn og erstatter alle dets labels. */
     @Transaction
     open suspend fun updateDeckWithLabels(deck: Deck, labels: List<String>) {
-        updateDeck(deck)
-        deleteLabels(deck.id)
-        insertLabels(toLabels(deck.id, labels))
+        renameDeck(deck.id, deck.name)
+        setLabels(deck.id, labels)
+    }
+
+    /** Erstatter alle et decks labels (plads 0 = side 1). */
+    @Transaction
+    open suspend fun setLabels(deckId: Long, labels: List<String>) {
+        deleteLabels(deckId)
+        insertLabels(toLabels(deckId, labels))
     }
 
     /** Tomme labels gemmes ikke; de øvrige beholder deres position. */
@@ -166,4 +180,56 @@ abstract class DeckDao {
         labels.take(CardSide.MAX_SIDES)
             .mapIndexed { i, label -> DeckSideLabel(deckId = deckId, position = i + 1, label = label.trim()) }
             .filter { it.label.isNotEmpty() }
+
+    // --- Synkronisering med serveren ---
+
+    @Query("SELECT * FROM folders WHERE courseId = :courseId")
+    abstract suspend fun getFolderByCourse(courseId: Long): Folder?
+
+    @Query("SELECT * FROM folders WHERE id = :folderId")
+    abstract suspend fun getFolderOnce(folderId: Long): Folder?
+
+    /** Opdaterer en lektions deck efter serverens lektionsliste. */
+    @Query(
+        "UPDATE decks SET name = :name, position = :position, serverHash = :serverHash, removedOnServer = 0 " +
+            "WHERE id = :deckId"
+    )
+    abstract suspend fun updateLessonDeck(deckId: Long, name: String, position: Int, serverHash: String)
+
+    @Query("UPDATE decks SET removedOnServer = 1 WHERE id IN (:deckIds)")
+    abstract suspend fun markRemovedOnServer(deckIds: List<Long>)
+
+    /** Kortene er hentet: decket er nu magen til serveren. */
+    @Query("UPDATE decks SET downloadedHash = :hash, serverHash = :hash WHERE id = :deckId")
+    abstract suspend fun markDownloaded(deckId: Long, hash: String)
+
+    @Transaction
+    @Query("SELECT * FROM flashcards WHERE deckId = :deckId ORDER BY id")
+    abstract suspend fun getCardsOnce(deckId: Long): List<FlashcardWithSides>
+
+    @Query("UPDATE flashcards SET category = :category, comment = :comment WHERE id = :cardId")
+    abstract suspend fun updateCategoryAndComment(cardId: Long, category: String, comment: String)
+
+    /**
+     * Gemmer et nyt kort fra serveren (plads 0 i [sides] = side 1). Et kort uden nogen tekst gemmes ikke.
+     */
+    @Transaction
+    open suspend fun insertSyncedCard(deckId: Long, wordId: Long, sides: List<String>, category: String, comment: String) {
+        if (sides.none { it.isNotBlank() }) return
+        val cardId = insertCard(Flashcard(deckId = deckId, wordId = wordId, category = category, comment = comment))
+        insertSides(toCardSides(cardId, sides))
+    }
+
+    /**
+     * Opdaterer et hentet kort med flettede værdier fra serveren. Noterne røres ikke.
+     */
+    @Transaction
+    open suspend fun updateSyncedCard(cardId: Long, sides: List<String>, category: String, comment: String) {
+        if (sides.any { it.isNotBlank() }) {
+            val newSides = toCardSides(cardId, sides)
+            deleteSides(cardId)
+            insertSides(newSides)
+        }
+        updateCategoryAndComment(cardId, category, comment)
+    }
 }
