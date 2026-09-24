@@ -199,9 +199,17 @@ abstract class DeckDao {
     @Query("UPDATE decks SET removedOnServer = 1 WHERE id IN (:deckIds)")
     abstract suspend fun markRemovedOnServer(deckIds: List<Long>)
 
-    /** Kortene er hentet: decket er nu magen til serveren. */
-    @Query("UPDATE decks SET downloadedHash = :hash, serverHash = :hash WHERE id = :deckId")
+    /** Kortene er hentet: decket er nu magen til serveren, og brugerens rettelser er erstattet. */
+    @Query("UPDATE decks SET downloadedHash = :hash, serverHash = :hash, locallyModified = 0 WHERE id = :deckId")
     abstract suspend fun markDownloaded(deckId: Long, hash: String)
+
+    /** Brugeren har rettet i en hentet lektion. Gælder kun lektioner fra et kursus. */
+    @Query("UPDATE decks SET locallyModified = 1 WHERE id = :deckId AND lessonId IS NOT NULL")
+    abstract suspend fun markLocallyModified(deckId: Long)
+
+    @Transaction
+    @Query("SELECT * FROM flashcards WHERE id = :cardId")
+    abstract suspend fun getCardOnce(cardId: Long): FlashcardWithSides?
 
     @Transaction
     @Query("SELECT * FROM flashcards WHERE deckId = :deckId ORDER BY id")

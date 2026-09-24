@@ -157,4 +157,21 @@ class MigrationTest {
         // Flere egne kort uden glose-id i samme deck er tilladt (NULL tæller ikke i unikke indekser).
         db.execSQL("INSERT INTO flashcards (deckId) VALUES (1), (1)")
     }
+
+    @Test
+    fun migrate6To7_decksAreNotLocallyModified() {
+        helper.createDatabase(testDb, 6).apply {
+            execSQL("INSERT INTO folders (id, name, courseId) VALUES (1, 'Arabisk', 71)")
+            execSQL("INSERT INTO decks (id, name, folderId, lessonId, serverHash, downloadedHash) VALUES (1, '1.01 Hilsner', 1, '1.01', 'a', 'a')")
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 7, true, MIGRATION_6_7)
+
+        db.query("SELECT locallyModified, downloadedHash FROM decks WHERE id = 1").use { c ->
+            c.moveToFirst()
+            assertEquals(0, c.getInt(0))
+            assertEquals("a", c.getString(1))
+        }
+    }
 }

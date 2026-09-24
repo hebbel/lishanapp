@@ -51,7 +51,9 @@ import dk.lishan.app.ui.theme.LishanTheme
  *
  * Decks, der er lektioner fra et kursus, viser deres tilstand: gråt med ↓ (ikke hentet – et tryk
  * henter kortene), ✓ (hentet), ↻ (ændret på serveren – ↻ henter igen) eller en sky med streg over
- * (findes ikke længere på serveren). Symbolerne har tekst til skærmlæsere, så farven ikke er eneste tegn.
+ * (findes ikke længere på serveren) eller ✎ (ændret af dig – kan gendannes fra kurset via ⋮).
+ * Symbolerne har tekst til skærmlæsere, så farven ikke er eneste tegn. Før brugerens rettelser
+ * overskrives af en hentning, skal det bekræftes.
  *
  * @param folders mapperne, der vises i listen (tom inde i en mappe).
  * @param moveTargets alle mapper, et deck kan flyttes til.
@@ -84,6 +86,12 @@ fun DeckListScreen(
     var folderToDeleteId by rememberSaveable { mutableStateOf<Long?>(null) }
     var deckToMoveId by rememberSaveable { mutableStateOf<Long?>(null) }
     var deckToDeleteId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var deckToRestoreId by rememberSaveable { mutableStateOf<Long?>(null) }
+
+    // Hentning overskriver brugerens rettelser; det skal bekræftes først.
+    val download: (Deck) -> Unit = { deck ->
+        if (deck.locallyModified) deckToRestoreId = deck.id else onDownloadDeck(deck)
+    }
 
     // LazyColumn tegner kun de rækker, der er synlige, så listen kan blive lang.
     LazyColumn(modifier = modifier) {
@@ -154,7 +162,7 @@ fun DeckListScreen(
                         SyncStatus(
                             deck = deck,
                             downloading = deck.id in downloadingDeckIds,
-                            onDownload = { onDownloadDeck(deck) },
+                            onDownload = { download(deck) },
                         )
                         RowMenu(
                             contentDescription = "Flere valg for ${deck.name}",
@@ -162,6 +170,9 @@ fun DeckListScreen(
                                 add("Rediger" to { onEditDeck(deck) })
                                 // En lektion hører til sit kursus; flyttet ville den dukke op igen ved næste opdatering.
                                 if (state == SyncState.LOCAL) add("Flyt til mappe" to { deckToMoveId = deck.id })
+                                if (deck.locallyModified && deck.downloadedHash != null) {
+                                    add("Gendan fra kurset" to { deckToRestoreId = deck.id })
+                                }
                                 add("Slet" to { deckToDeleteId = deck.id })
                             },
                         )
@@ -222,6 +233,20 @@ fun DeckListScreen(
         )
     }
 
+    decks.find { it.id == deckToRestoreId }?.let { deck ->
+        ConfirmDeleteDialog(
+            title = "Gendan fra kurset?",
+            text = "Dine rettelser i \"${deck.name}\" erstattes af kursets version, og kort, du har slettet, " +
+                "kommer tilbage. Dine noter og dine egne kort bevares.",
+            confirmLabel = "Gendan",
+            onConfirm = {
+                deckToRestoreId = null
+                onDownloadDeck(deck)
+            },
+            onDismiss = { deckToRestoreId = null },
+        )
+    }
+
     decks.find { it.id == deckToDeleteId }?.let { deck ->
         ConfirmDeleteDialog(
             title = "Slet deck?",
@@ -244,13 +269,14 @@ private fun syncHint(state: SyncState): String? = when (state) {
     SyncState.NOT_DOWNLOADED -> "Ikke hentet – tryk for at hente"
     SyncState.OUT_OF_SYNC -> "Ændret på serveren – tryk på ↻ for at hente igen"
     SyncState.REMOVED_ON_SERVER -> "Findes ikke længere på serveren"
+    SyncState.LOCALLY_MODIFIED -> "Ændret af dig – kan gendannes fra kurset"
     SyncState.LOCAL, SyncState.SYNCED -> null
 }
 
 private val SyncedGreen = Color(0xFF2E7D32)
 private val OutOfSyncOrange = Color(0xFFE65100)
 
-/** Symbolet for en lektions tilstand: ↓, ✓, ↻ eller en sky med streg over. Intet for egne decks. */
+/** Symbolet for en lektions tilstand: ↓, ✓, ↻, ✎ eller en sky med streg over. Intet for egne decks. */
 @Composable
 private fun SyncStatus(deck: Deck, downloading: Boolean, onDownload: () -> Unit) {
     val grey = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
@@ -266,6 +292,10 @@ private fun SyncStatus(deck: Deck, downloading: Boolean, onDownload: () -> Unit)
         deck.syncState == SyncState.OUT_OF_SYNC -> IconButton(onClick = onDownload) {
             Icon(painterResource(R.drawable.ic_sync), contentDescription = "Hent ${deck.name} igen", tint = OutOfSyncOrange)
         }
+        deck.syncState == SyncState.LOCALLY_MODIFIED -> Icon(
+            painterResource(R.drawable.ic_edit), contentDescription = "Ændret af dig",
+            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(12.dp),
+        )
         deck.syncState == SyncState.REMOVED_ON_SERVER -> Icon(
             painterResource(R.drawable.ic_cloud_off), contentDescription = "Findes ikke længere på serveren",
             tint = grey, modifier = Modifier.padding(12.dp),
@@ -347,6 +377,7 @@ fun DeckListScreenPreview() {
                 Deck(id = 2, name = "1.01 Hilsner", lessonId = "1.01", serverHash = "a", downloadedHash = "a"),
                 Deck(id = 3, name = "1.02 Familie", lessonId = "1.02", serverHash = "b", downloadedHash = "a"),
                 Deck(id = 4, name = "2.01 Farver", lessonId = "2.01", serverHash = "c"),
+                Deck(id = 5, name = "2.02 Tal", lessonId = "2.02", serverHash = "d", downloadedHash = "d", locallyModified = true),
             ),
             moveTargets = listOf(Folder(id = 1, name = "Arabisk 24-26")),
             onFolderClick = {},

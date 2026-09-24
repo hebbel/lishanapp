@@ -6,7 +6,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 
 /**
- * Dialog, der beder brugeren bekræfte en sletning. Bruges både til decks og kort.
+ * Dialog, der beder brugeren bekræfte en handling, der ikke kan fortrydes, fx en sletning.
+ * [confirmLabel] er teksten på knappen, der udfører handlingen.
  */
 @Composable
 fun ConfirmDeleteDialog(
@@ -14,12 +15,13 @@ fun ConfirmDeleteDialog(
     text: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
+    confirmLabel: String = "Slet",
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { Text(text) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text("Slet") } },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(confirmLabel) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Annullér") } },
     )
 }

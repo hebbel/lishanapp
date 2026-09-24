@@ -29,6 +29,15 @@ object SyncRules {
         return List(size) { i -> sides.firstOrNull { it.position == i + 1 }?.label.orEmpty() }
     }
 
+    /**
+     * Om to udgaver af et korts sider (plads 0 = side 1) har samme indhold. Mellemrum i enderne og
+     * tomme sider til sidst tæller ikke med; tomme sider imellem gør (de bevarer positionerne).
+     */
+    fun sameSides(a: List<String>, b: List<String>): Boolean = normalize(a) == normalize(b)
+
+    private fun normalize(sides: List<String>): List<String> =
+        sides.take(CardSide.MAX_SIDES).map { it.trim() }.dropLastWhile { it.isEmpty() }
+
     /** Deckets titel for en lektion, fx "12.05 Familie". */
     fun deckTitle(lesson: LessonDto): String = "${lesson.id} ${lesson.title}".trim()
 }

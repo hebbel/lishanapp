@@ -37,6 +37,13 @@ class SyncRulesTest {
     }
 
     @Test
+    fun sameSides_ignoresOuterSpacesAndTrailingEmptySides_butNotGaps() {
+        assert(SyncRules.sameSides(listOf("hund", "dog"), listOf(" hund ", "dog", "", "")))
+        assert(!SyncRules.sameSides(listOf("hund", "dog"), listOf("hund", "", "dog")))
+        assert(!SyncRules.sameSides(listOf("hund", "dog"), listOf("hund", "hound")))
+    }
+
+    @Test
     fun deckTitle_combinesNumberAndName() {
         assertEquals("12.05 Familie", SyncRules.deckTitle(LessonDto(id = "12.05", title = "Familie", hash = "x")))
     }

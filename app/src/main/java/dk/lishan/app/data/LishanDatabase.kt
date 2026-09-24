@@ -23,10 +23,11 @@ import dk.lishan.app.model.Folder
  * Version 4: kolonnerne notes og comment på flashcards.
  * Version 5: ny tabel folders og kolonnen folderId på decks.
  * Version 6: synkronisering – lektions-id og fingeraftryk på decks, glose-id og kategori på kort.
+ * Version 7: locallyModified på decks (brugeren har rettet i en hentet lektion).
  */
 @Database(
     entities = [Folder::class, Deck::class, Flashcard::class, CardSide::class, DeckSideLabel::class],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class LishanDatabase : RoomDatabase() {
@@ -46,7 +47,7 @@ abstract class LishanDatabase : RoomDatabase() {
                 )
                     .addCallback(SeedData)
                     // Mangler der en migration, går appen ned i stedet for at slette data i stilhed.
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .build()
                     .also { instance = it }
             }

@@ -19,6 +19,7 @@ import androidx.room.PrimaryKey
  * - [serverHash]: lektionens fingeraftryk, som serveren sidst oplyste det.
  * - [downloadedHash]: fingeraftrykket, da kortene blev hentet. `null` = ikke hentet endnu.
  * - [removedOnServer]: lektionen findes ikke længere på serveren (decket beholdes i appen).
+ * - [locallyModified]: brugeren har rettet eller slettet kort fra kurset siden sidste hentning.
  * Tilstanden ([syncState]) beregnes ud fra dem og gemmes ikke for sig.
  */
 @Entity(
@@ -43,6 +44,7 @@ data class Deck(
     val serverHash: String? = null,
     val downloadedHash: String? = null,
     @ColumnInfo(defaultValue = "0") val removedOnServer: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val locallyModified: Boolean = false,
 ) {
     /** Deckets tilstand i forhold til serveren. */
     val syncState: SyncState
@@ -50,7 +52,9 @@ data class Deck(
             lessonId == null -> SyncState.LOCAL
             downloadedHash == null -> SyncState.NOT_DOWNLOADED
             removedOnServer -> SyncState.REMOVED_ON_SERVER
+            // Nyt fra kurset vises før brugerens egne rettelser.
             downloadedHash != serverHash -> SyncState.OUT_OF_SYNC
+            locallyModified -> SyncState.LOCALLY_MODIFIED
             else -> SyncState.SYNCED
         }
 }
@@ -65,6 +69,8 @@ enum class SyncState {
     SYNCED,
     /** Hentet, men ændret på serveren siden. */
     OUT_OF_SYNC,
+    /** Hentet og uændret på serveren, men brugeren har rettet eller slettet kort fra kurset. */
+    LOCALLY_MODIFIED,
     /** Hentet, men lektionen findes ikke længere på serveren. */
     REMOVED_ON_SERVER,
 }

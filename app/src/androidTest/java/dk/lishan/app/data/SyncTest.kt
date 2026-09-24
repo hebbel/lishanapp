@@ -156,4 +156,88 @@ class SyncTest {
         assertEquals("Hilsner (mine)", after.name)
         assertEquals(SyncState.SYNCED, after.syncState)
     }
+
+    private suspend fun downloadedHello(folder: Folder): Deck {
+        repository.downloadLesson(deck(folder, "1.01"))
+        return deck(folder, "1.01")
+    }
+
+    @Test
+    fun editingSidesOrComment_marksLocallyModified_butNotesOwnCardsAndUnchangedSaveDoNot() = runBlocking {
+        val folder = connect()
+        val hello = downloadedHello(folder)
+        val card = repository.cards(hello.id).first().single { it.card.wordId == 101L }
+
+        // Gem uden ændringer, ret kun noter, og lav et eget kort: stadig magen til kurset.
+        repository.updateCard(card.card.id, card.sidesByPosition(), notes = "", comment = card.card.comment)
+        repository.updateCard(card.card.id, card.sidesByPosition(), notes = "min note", comment = card.card.comment)
+        repository.createCard(hello.id, listOf("godmorgen"), notes = "", comment = "")
+        assertEquals(SyncState.SYNCED, deck(folder, "1.01").syncState)
+
+        // Ret en side: ændret af brugeren.
+        repository.updateCard(card.card.id, listOf("hej!", "مرحبا", "marhaban", "hello"), notes = "min note", comment = "")
+        assertEquals(SyncState.LOCALLY_MODIFIED, deck(folder, "1.01").syncState)
+    }
+
+    @Test
+    fun editingComment_marksLocallyModified() = runBlocking {
+        val folder = connect()
+        repository.downloadLesson(deck(folder, "1.02"))
+        val family = deck(folder, "1.02")
+        val father = repository.cards(family.id).first().single { it.card.wordId == 201L }
+
+        repository.updateCard(father.card.id, father.sidesByPosition(), notes = "", comment = "min kommentar")
+
+        assertEquals(SyncState.LOCALLY_MODIFIED, deck(folder, "1.02").syncState)
+    }
+
+    @Test
+    fun deletingCourseCard_marksLocallyModified_deletingOwnCardDoesNot() = runBlocking {
+        val folder = connect()
+        val hello = downloadedHello(folder)
+        repository.createCard(hello.id, listOf("godmorgen"), notes = "", comment = "")
+        val own = repository.cards(hello.id).first().single { it.card.wordId == null }
+
+        repository.deleteCard(own.card.id)
+        assertEquals(SyncState.SYNCED, deck(folder, "1.01").syncState)
+
+        val thanks = repository.cards(hello.id).first().single { it.card.wordId == 102L }
+        repository.deleteCard(thanks.card.id)
+        assertEquals(SyncState.LOCALLY_MODIFIED, deck(folder, "1.01").syncState)
+    }
+
+    @Test
+    fun restoreFromCourse_bringsBackDeletedCardsAndText_keepsNotesAndOwnCards() = runBlocking {
+        val folder = connect()
+        val hello = downloadedHello(folder)
+        val cards = repository.cards(hello.id).first()
+        val hi = cards.single { it.card.wordId == 101L }
+        repository.updateCard(hi.card.id, listOf("hej!", "مرحبا", "marhaban", "hello"), notes = "min note", comment = "")
+        repository.deleteCard(cards.single { it.card.wordId == 102L }.card.id)
+        repository.createCard(hello.id, listOf("godmorgen"), notes = "", comment = "")
+
+        repository.downloadLesson(deck(folder, "1.01"))
+
+        val after = repository.cards(hello.id).first()
+        assertEquals(SyncState.SYNCED, deck(folder, "1.01").syncState)
+        assertEquals(listOf(101L, 102L, 103L), after.mapNotNull { it.card.wordId }.sorted())
+        val restored = after.single { it.card.wordId == 101L }
+        assertEquals("hej", restored.visibleSides.first())
+        assertEquals("min note", restored.card.notes)
+        assertTrue(after.any { it.card.wordId == null && it.visibleSides.first() == "godmorgen" })
+    }
+
+    @Test
+    fun serverChange_winsOverLocalModification() = runBlocking {
+        val folder = connect()
+        val hello = downloadedHello(folder)
+        repository.deleteCard(repository.cards(hello.id).first().first().card.id)
+
+        api.simulateServerChange()
+        repository.refreshCourse(folder)
+
+        val after = deck(folder, "1.01")
+        assertEquals(SyncState.OUT_OF_SYNC, after.syncState)
+        assertTrue(after.locallyModified)
+    }
 }

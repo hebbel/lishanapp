@@ -142,7 +142,12 @@ fun DeckScreen(
     cards.find { it.card.id == cardToDeleteId }?.let { card ->
         ConfirmDeleteDialog(
             title = "Slet kort?",
-            text = "\"${card.visibleSides.firstOrNull().orEmpty()}\" slettes. Det kan ikke fortrydes.",
+            text = if (card.card.wordId != null) {
+                "\"${card.visibleSides.firstOrNull().orEmpty()}\" slettes. Kortet kommer fra kurset og kommer " +
+                    "tilbage, hvis lektionen gendannes fra kurset."
+            } else {
+                "\"${card.visibleSides.firstOrNull().orEmpty()}\" slettes. Det kan ikke fortrydes."
+            },
             onConfirm = {
                 cardToDeleteId = null
                 onDeleteCard(card)

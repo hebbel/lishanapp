@@ -71,10 +71,30 @@ class DeckRepository(private val database: LishanDatabase, private val api: Lish
     suspend fun createCard(deckId: Long, sides: List<String>, notes: String, comment: String) =
         dao.insertCardWithSides(deckId, sides, notes, comment)
 
-    suspend fun updateCard(cardId: Long, sides: List<String>, notes: String, comment: String) =
-        dao.updateCard(cardId, sides, notes, comment)
+    /**
+     * Gemmer et kort. Er det et kort fra et kursus, og er siderne eller kommentaren ændret, markeres
+     * decket som "ændret af dig". Noterne tæller ikke med: de er brugerens egne.
+     */
+    suspend fun updateCard(cardId: Long, sides: List<String>, notes: String, comment: String) {
+        database.withTransaction {
+            val before = dao.getCardOnce(cardId)
+            dao.updateCard(cardId, sides, notes, comment)
+            if (before != null && before.card.wordId != null &&
+                (!SyncRules.sameSides(before.sidesByPosition(), sides) || before.card.comment != comment.trim())
+            ) {
+                dao.markLocallyModified(before.card.deckId)
+            }
+        }
+    }
 
-    suspend fun deleteCard(cardId: Long) = dao.deleteCard(cardId)
+    /** Sletter et kort. Er det et kort fra et kursus, markeres decket som "ændret af dig". */
+    suspend fun deleteCard(cardId: Long) {
+        database.withTransaction {
+            val before = dao.getCardOnce(cardId)
+            dao.deleteCard(cardId)
+            if (before?.card?.wordId != null) dao.markLocallyModified(before.card.deckId)
+        }
+    }
 
     // --- Synkronisering med serveren ---
     // Funktionerne kaster en undtagelse, hvis serveren ikke kan nås. Så er intet ændret lokalt.
@@ -130,7 +150,8 @@ class DeckRepository(private val database: LishanDatabase, private val api: Lish
     /**
      * Henter en lektions kort og fletter dem ind i decket efter [SyncRules]: serverens tekst vinder,
      * undtagen når den er tom; noterne røres aldrig; kort, brugeren selv har oprettet, røres ikke.
-     * Bruges både første gang og til at synkronisere en lektion, der er "ude af sync".
+     * Kort fra kurset, som brugeren har slettet, kommer tilbage. Bagefter er decket ikke længere
+     * "ændret af dig". Bruges første gang, til "ude af sync" og til "Gendan fra kurset".
      */
     suspend fun downloadLesson(deck: Deck) {
         val lessonId = requireNotNull(deck.lessonId) { "Decket ${deck.name} er ikke en lektion" }

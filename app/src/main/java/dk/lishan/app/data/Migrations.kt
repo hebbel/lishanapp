@@ -129,3 +129,10 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_flashcards_deckId_wordId` ON `flashcards` (`deckId`, `wordId`)")
     }
 }
+
+/** 6 → 7: Decks får locallyModified. Ingen lektioner er rettet endnu, så alle får 0. */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `decks` ADD COLUMN `locallyModified` INTEGER NOT NULL DEFAULT 0")
+    }
+}
