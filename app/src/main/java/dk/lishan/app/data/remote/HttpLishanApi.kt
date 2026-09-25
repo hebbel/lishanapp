@@ -15,7 +15,6 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
 
 /**
  * Det rigtige Lishan-API over HTTP (se docs/app-api.md).
@@ -65,7 +64,7 @@ class HttpLishanApi(
             authorized { token ->
                 Request.Builder().url(url(listOf("api", "v1", "logout"))).bearer(token)
                     .post(ByteArray(0).toRequestBody()).build()
-            }.close()
+            }
         } finally {
             // Login'et glemmes i appen, også hvis serveren ikke kunne nås.
             tokenStore.clear()
@@ -75,31 +74,29 @@ class HttpLishanApi(
     // --- Hjælpefunktioner ---
 
     private suspend fun <T> get(segments: List<String>, deserializer: DeserializationStrategy<T>): T {
-        val response = authorized { token -> Request.Builder().url(url(segments)).bearer(token).get().build() }
-        return response.use { json.decodeFromString(deserializer, it.body.string()) }
+        val body = authorized { token -> Request.Builder().url(url(segments)).bearer(token).get().build() }
+        return json.decodeFromString(deserializer, body)
     }
 
     /**
      * Sender et kald med brugerens access token, som [buildRequest] sætter på. Fornyer tokens og
-     * prøver igen ved `401`. Giver svaret tilbage, hvis det lykkedes; kaster ellers.
+     * prøver igen ved `401`. Giver svarets indhold tilbage, hvis det lykkedes; kaster ellers.
      */
-    private suspend fun authorized(buildRequest: (accessToken: String) -> Request): Response {
+    private suspend fun authorized(buildRequest: (accessToken: String) -> Request): String {
         var tokens = tokenStore.load() ?: throw NotLoggedInException()
         if (isExpired(tokens)) tokens = refresh(tokens)
 
         var response = execute(buildRequest(tokens.accessToken))
         if (response.code == 401) {
-            response.close()
             tokens = refresh(tokens)
             response = execute(buildRequest(tokens.accessToken))
             if (response.code == 401) {
-                response.close()
                 tokenStore.clear()
                 throw NotLoggedInException()
             }
         }
-        if (!response.isSuccessful) throw response.use { apiError(it) }
-        return response
+        if (!response.isSuccessful) throw apiError(response)
+        return response.body
     }
 
     /** Fornyer tokens med refresh token og gemmer de nye. */
@@ -114,41 +111,51 @@ class HttpLishanApi(
             .add("refresh_token", current.refreshToken)
             .build()
         val request = Request.Builder().url(url(listOf("oauth", "token"))).post(body).build()
-        execute(request).use { response ->
-            when {
-                response.isSuccessful -> {
-                    val result = json.decodeFromString(TokenResponseDto.serializer(), response.body.string())
-                    val fresh = Tokens(
-                        accessToken = result.accessToken,
-                        refreshToken = result.refreshToken,
-                        expiresAtMillis = clock() + result.expiresIn * 1000,
-                    )
-                    tokenStore.save(fresh)
-                    fresh
-                }
-                // Serveren afviser refresh token (udløbet eller tilbagekaldt): brugeren skal logge ind igen.
-                response.code in 400..499 -> {
-                    tokenStore.clear()
-                    throw NotLoggedInException()
-                }
-                else -> throw apiError(response)
+        val response = execute(request)
+        when {
+            response.isSuccessful -> {
+                val result = json.decodeFromString(TokenResponseDto.serializer(), response.body)
+                val fresh = Tokens(
+                    accessToken = result.accessToken,
+                    refreshToken = result.refreshToken,
+                    expiresAtMillis = clock() + result.expiresIn * 1000,
+                )
+                tokenStore.save(fresh)
+                fresh
             }
+            // Serveren afviser refresh token (udløbet eller tilbagekaldt): brugeren skal logge ind igen.
+            response.code in 400..499 -> {
+                tokenStore.clear()
+                throw NotLoggedInException()
+            }
+            else -> throw apiError(response)
         }
     }
 
     /** Et token regnes for udløbet lidt før tid, så det ikke udløber undervejs. */
     private fun isExpired(tokens: Tokens) = clock() >= tokens.expiresAtMillis - EXPIRY_MARGIN_MILLIS
 
-    private suspend fun execute(request: Request): Response =
-        withContext(Dispatchers.IO) { client.newCall(request).execute() }
+    /** Et færdigt svar: statuskode og hele indholdet som tekst. */
+    private class HttpResult(val code: Int, val body: String) {
+        val isSuccessful get() = code in 200..299
+    }
+
+    /**
+     * Sender [request] og læser hele svaret – begge dele i baggrunden (Dispatchers.IO). Android
+     * forbyder netværk på hovedtråden, og indholdet af et stort svar hentes først fra netværket,
+     * mens det læses.
+     */
+    private suspend fun execute(request: Request): HttpResult = withContext(Dispatchers.IO) {
+        client.newCall(request).execute().use { HttpResult(it.code, it.body.string()) }
+    }
 
     private fun url(segments: List<String>): HttpUrl =
         base.newBuilder().apply { segments.forEach { addPathSegment(it) } }.build()
 
     private fun Request.Builder.bearer(token: String) = header("Authorization", "Bearer $token")
 
-    private fun apiError(response: Response): ApiException {
-        val code = runCatching { json.decodeFromString(ErrorDto.serializer(), response.body.string()).error }
+    private fun apiError(response: HttpResult): ApiException {
+        val code = runCatching { json.decodeFromString(ErrorDto.serializer(), response.body).error }
             .getOrDefault("")
         return ApiException(response.code, code)
     }

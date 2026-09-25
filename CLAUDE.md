@@ -44,6 +44,10 @@ En flashcard-app til Android. Forsiden viser mapper (øverst) og de decks, der i
 
 Avast opsnapper HTTPS, og Java stoler ikke på Avasts certifikat, så Gradle kan ikke hente nye afhængigheder. Der er lagt undtagelser ind i Avast for `dl.google.com`, `repo.maven.apache.org`, `plugins.gradle.org` og `services.gradle.org`. Fejler en download med "could not resolve", så tjek certifikatudstederen med `openssl s_client -connect <host>:443` — står der "Avast", mangler der en undtagelse.
 
+Emulatorens trafik går gennem `qemu-system-x86_64.exe`, og Avast afbryder dens HTTPS-forbindelser (fx `SocketException: Connection reset`, `SSLHandshakeException`, i Chrome `net_error -202`), selvom adresserne er undtaget. Derfor er selve programmet `C:\Users\sjheb\AppData\Local\Android\Sdk\emulator\qemu\windows-x86_64\qemu-system-x86_64.exe` undtaget i Avast (stien kan ændre sig, når emulatoren opdateres). `lishan.fak.dk` og `id.fak.dk` er også undtaget.
+
+Læs aldrig emulatorens skærm (uiautomator-dump), mens en browser/login-side kan være åben: dumpet indeholder teksten i adgangskodefelter. Tjek først `dumpsys window | grep mCurrentFocus`, og brug logcat til fejlsøgning af login.
+
 ## Byg og kør
 
 `JAVA_HOME` er ikke sat på maskinen — brug Android Studios medfølgende JDK:

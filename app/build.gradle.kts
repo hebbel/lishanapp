@@ -65,6 +65,7 @@ dependencies {
     implementation(libs.okhttp)
     // En falsk HTTP-server til at teste kaldene til Lishan-serveren.
     testImplementation(libs.okhttp.mockwebserver)
+    androidTestImplementation(libs.okhttp.mockwebserver)
     ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

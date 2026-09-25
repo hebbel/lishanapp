@@ -27,7 +27,8 @@ interface LoginService {
     suspend fun completeLogin(result: Intent?): Tokens
 }
 
-class LoginFailedException(message: String) : Exception(message)
+/** Login mislykkedes. [cause] er den underliggende fejl, fx en netværksfejl, hvis der er en. */
+class LoginFailedException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /**
  * [LoginService] med biblioteket AppAuth, som står for PKCE, browseren (Custom Tabs) og redirect'en
@@ -55,9 +56,10 @@ class AppAuthLoginService(
 
     override suspend fun completeLogin(result: Intent?): Tokens {
         val response = result?.let { AuthorizationResponse.fromIntent(it) }
-            ?: throw LoginFailedException(
-                result?.let { AuthorizationException.fromIntent(it) }?.errorDescription ?: "Login blev afbrudt"
-            )
+            ?: run {
+                val error = result?.let { AuthorizationException.fromIntent(it) }
+                throw LoginFailedException(error?.errorDescription ?: "Login blev afbrudt", error)
+            }
         return suspendCancellableCoroutine { continuation ->
             service.performTokenRequest(response.createTokenExchangeRequest()) { tokenResponse, exception ->
                 val access = tokenResponse?.accessToken
@@ -66,8 +68,9 @@ class AppAuthLoginService(
                     val expiresAt = tokenResponse.accessTokenExpirationTime ?: (clock() + 3_600_000)
                     continuation.resume(Tokens(access, refresh, expiresAt))
                 } else {
+                    // AppAuth pakker den egentlige fejl (fx "Connection reset") ind som `cause`.
                     continuation.resumeWithException(
-                        LoginFailedException(exception?.errorDescription ?: "Serveren gav ingen tokens")
+                        LoginFailedException(exception?.errorDescription ?: "Serveren gav ingen tokens", exception)
                     )
                 }
             }

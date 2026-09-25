@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import dk.lishan.app.data.auth.LishanAuth
 import dk.lishan.app.data.remote.CourseDto
 import dk.lishan.app.data.remote.FakeLishanApi
+import dk.lishan.app.data.remote.LessonDto
 import dk.lishan.app.data.remote.LishanApi
 import dk.lishan.app.data.remote.UserDto
 import dk.lishan.app.data.sync.SyncRules
@@ -116,10 +117,14 @@ class DeckRepository(
      * forbundet) og henter listen over lektioner. Kortene hentes ikke; det vælger brugeren selv.
      */
     suspend fun connectCourse(course: CourseDto): Folder {
-        val folder = dao.getFolderByCourse(course.id)
-            ?: Folder(name = course.name, courseId = course.id).let { it.copy(id = dao.insertFolder(it)) }
-        refreshCourse(folder, course)
-        return folder
+        // Hent først fra serveren: fejler det, oprettes ingen (tom) mappe.
+        val lessons = api.getLessons(course.id)
+        return database.withTransaction {
+            val folder = dao.getFolderByCourse(course.id)
+                ?: Folder(name = course.name, courseId = course.id).let { it.copy(id = dao.insertFolder(it)) }
+            applyLessons(folder, course, lessons)
+            folder
+        }
     }
 
     /**
@@ -133,27 +138,29 @@ class DeckRepository(
         val courseId = requireNotNull(folder.courseId) { "Mappen ${folder.name} er ikke et kursus" }
         val course = knownCourse ?: api.getCourses().find { it.id == courseId }
         val lessons = api.getLessons(courseId)
+        database.withTransaction { applyLessons(folder, course, lessons) }
+    }
+
+    /** Opdaterer en kursusmappe efter serverens lektionsliste (se [refreshCourse]). Kaldes i en transaktion. */
+    private suspend fun applyLessons(folder: Folder, course: CourseDto?, lessons: List<LessonDto>) {
         val labels = course?.let { SyncRules.labelsOf(it.sides) }
+        if (course != null && course.name != folder.name) dao.updateFolder(folder.copy(name = course.name))
 
-        database.withTransaction {
-            if (course != null && course.name != folder.name) dao.updateFolder(folder.copy(name = course.name))
-
-            val existing = dao.getDecksInOnce(folder.id).filter { it.lessonId != null }.associateBy { it.lessonId }
-            lessons.forEachIndexed { position, lesson ->
-                val title = SyncRules.deckTitle(lesson)
-                val deckId = existing[lesson.id]
-                    ?.also { dao.updateLessonDeck(it.id, title, position, lesson.hash) }?.id
-                    ?: dao.insertDeck(
-                        Deck(name = title, folderId = folder.id, lessonId = lesson.id, position = position, serverHash = lesson.hash)
-                    )
-                if (labels != null) dao.setLabels(deckId, labels)
-            }
-
-            val onServer = lessons.map { it.id }.toSet()
-            val gone = existing.values.filter { it.lessonId !in onServer }
-            gone.filter { it.downloadedHash == null }.forEach { dao.deleteDeck(it) }
-            dao.markRemovedOnServer(gone.filter { it.downloadedHash != null }.map { it.id })
+        val existing = dao.getDecksInOnce(folder.id).filter { it.lessonId != null }.associateBy { it.lessonId }
+        lessons.forEachIndexed { position, lesson ->
+            val title = SyncRules.deckTitle(lesson)
+            val deckId = existing[lesson.id]
+                ?.also { dao.updateLessonDeck(it.id, title, position, lesson.hash) }?.id
+                ?: dao.insertDeck(
+                    Deck(name = title, folderId = folder.id, lessonId = lesson.id, position = position, serverHash = lesson.hash)
+                )
+            if (labels != null) dao.setLabels(deckId, labels)
         }
+
+        val onServer = lessons.map { it.id }.toSet()
+        val gone = existing.values.filter { it.lessonId !in onServer }
+        gone.filter { it.downloadedHash == null }.forEach { dao.deleteDeck(it) }
+        dao.markRemovedOnServer(gone.filter { it.downloadedHash != null }.map { it.id })
     }
 
     /**

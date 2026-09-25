@@ -144,6 +144,21 @@ class SyncTest {
     }
 
     @Test
+    fun connectCourse_offline_createsNoEmptyFolder() = runBlocking {
+        val course = repository.availableCourses().single()
+        api.offline = true
+
+        try {
+            repository.connectCourse(course)
+            fail("Burde have kastet en undtagelse")
+        } catch (e: Exception) {
+            // Forventet: ingen forbindelse.
+        }
+
+        assertTrue(repository.folders.first().isEmpty())
+    }
+
+    @Test
     fun editDeck_keepsSyncFields() = runBlocking {
         val folder = connect()
         repository.downloadLesson(deck(folder, "1.01"))
